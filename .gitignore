@@ -9,3 +9,6 @@ makefile
 *.txt
 .*
 !.gitignore
+*.RData
+*.rData
+*.rdata
