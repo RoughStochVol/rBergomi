@@ -1,0 +1,3 @@
+useDynLib(RBergomi)
+exportPattern("^[[:alpha:]]+")
+importFrom(Rcpp, evalCpp)
