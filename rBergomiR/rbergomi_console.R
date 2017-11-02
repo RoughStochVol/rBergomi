@@ -16,7 +16,8 @@
 ## 2) The executable is called, computes prices and IVs and saves them in a text file
 ##    with name output.name in paths.
 ## 3) The results are read from the output file.
-rBergomi.pricer <- function(xi, H, eta, rho, T, K, N, M, num.threads, output.name){
+rBergomi.pricer <- function(xi, H, eta, rho, T, K, N, M, num.threads, output.name,
+                            debugP = FALSE){
   ## force non-scientific notation of numbers
   #scipen.old <- options()$scipen
   #options(scipen = 999)
@@ -25,6 +26,9 @@ rBergomi.pricer <- function(xi, H, eta, rho, T, K, N, M, num.threads, output.nam
   
   ## Save in files expected by console
   path <- "/Users/bayerc/Documents/workspace/roughBergomi/rBergomi/Release/"
+  if(debugP)
+    path <- "/Users/bayerc/Documents/workspace/roughBergomi/rBergomi/Debug/"
+  
   write.table(f10(H), file=paste(path,".H.txt", sep=""), col.names=FALSE, row.names=FALSE, 
               sep="\n", quote=FALSE)
   write.table(f10(eta), file=paste(path,".eta.txt", sep=""), col.names=FALSE, row.names=FALSE, 

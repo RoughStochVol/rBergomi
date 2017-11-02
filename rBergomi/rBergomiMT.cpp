@@ -52,11 +52,14 @@ fftData::fftData(int nDFT, int numThreads) {
 	fPlanZ = std::vector<fftw_plan>(numThreads);
 	for (int i = 0; i < numThreads; ++i) {
 		fPlanX[i] = fftw_plan_dft_1d(nDFT, xC[i], xHat[i], FFTW_FORWARD,
-				FFTW_ESTIMATE);
+				FFTW_PATIENT);
+				//FFTW_ESTIMATE);
 		fPlanY[i] = fftw_plan_dft_1d(nDFT, yC[i], yHat[i], FFTW_FORWARD,
-				FFTW_ESTIMATE);
+				FFTW_PATIENT);
+				//FFTW_ESTIMATE);
 		fPlanZ[i] = fftw_plan_dft_1d(nDFT, zHat[i], zC[i], FFTW_BACKWARD,
-				FFTW_ESTIMATE);
+				FFTW_PATIENT);
+				//FFTW_ESTIMATE);
 	}
 }
 

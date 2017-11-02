@@ -1,0 +1,106 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 11.1' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      2850,         96]
+NotebookOptionsPosition[      2296,         75]
+NotebookOutlinePosition[      2649,         91]
+CellTagsIndexPosition[      2606,         88]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Hierarchical representation of Brownian increments", "Subsection",
+ CellChangeTimes->{{3.718536137755582*^9, 
+  3.718536153128477*^9}},ExpressionUUID->"e81fd5e6-e3fc-4aeb-a0d1-\
+dea29b786fe6"],
+
+Cell[TextData[{
+ "Given an interval ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"[", 
+    RowBox[{"0", ",", "1"}], "]"}], TraditionalForm]],
+  FormatType->"TraditionalForm",ExpressionUUID->
+  "b9149724-d7d1-4e94-b6de-184a1a17a776"],
+ ", we are trying to represent increments ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["W", 
+      SubscriptBox["t", 
+       RowBox[{"i", "+", "1"}]]], "-", 
+     SubscriptBox["W", 
+      SubscriptBox["t", "i"]]}], ",", " ", 
+    RowBox[{
+     SubscriptBox["t", "i"], "=", 
+     RowBox[{"i", " ", 
+      SuperscriptBox["2", 
+       RowBox[{"-", "m"}]]}]}], ",", " ", 
+    RowBox[{"i", "=", "0"}], ",", "...", ",", 
+    SuperscriptBox["2", "m"], ","}], TraditionalForm]],
+  FormatType->"TraditionalForm",ExpressionUUID->
+  "d56ef6df-c39b-44e9-8736-f5ab7d6d8be7"],
+ " by means of the hierarchical representation in terms of Haar basis. We \
+start with defining the Schauder functions on ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"[", 
+    RowBox[{"0", ",", "1"}], "]"}], TraditionalForm]],
+  FormatType->"TraditionalForm",ExpressionUUID->
+  "4cb30d80-9f7f-4204-a17e-1a364f38ad71"],
+ "."
+}], "Text",
+ CellChangeTimes->{{3.718536159027493*^9, 3.718536174660698*^9}, {
+  3.718536293046172*^9, 
+  3.718536480293407*^9}},ExpressionUUID->"3ebebe79-4633-4ece-974a-\
+868c28b93176"],
+
+Cell["Schauder functions", "Subsubsection",
+ CellChangeTimes->{{3.7185364854289427`*^9, 
+  3.718536491878717*^9}},ExpressionUUID->"a5204a25-b35b-4978-a700-\
+833638ce17c6"]
+}, Open  ]]
+},
+WindowSize->{808, 831},
+WindowMargins->{{4, Automatic}, {Automatic, 4}},
+FrontEndVersion->"11.1 for Mac OS X x86 (32-bit, 64-bit Kernel) (March 16, \
+2017)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 198, 3, 44, "Subsection", "ExpressionUUID" -> \
+"e81fd5e6-e3fc-4aeb-a0d1-dea29b786fe6"],
+Cell[781, 27, 1325, 40, 55, "Text", "ExpressionUUID" -> \
+"3ebebe79-4633-4ece-974a-868c28b93176"],
+Cell[2109, 69, 171, 3, 35, "Subsubsection", "ExpressionUUID" -> \
+"a5204a25-b35b-4978-a700-833638ce17c6"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+
