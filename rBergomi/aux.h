@@ -7,6 +7,7 @@
 #include<vector>
 #include<iterator>
 #include<string>
+#include<sstream>
 #include<cstdlib>
 #include<cmath>
 #include<fftw3.h>
@@ -111,11 +112,53 @@ inline void hierarchical2increments(const Vector& Z, Vector& dW){
 	for(int i=0; i<exp2(m); ++i){
 		dW[i] = exp2(-0.5*m) * Z[0];
 		for(int n=1; n<=m; ++n){
-			int i1 = exp2(n-1) + floor(i * exp2(n-m));
-			int i2 = i1 - 1;
-			dW[i] += exp2(0.5*(n-m-1)) * (Z[i1] - Z[i2]);
+			int i2nm = floor(i * exp2(n - m));
+			int iota = (i2nm + 1) % 2; // = 1 if i2nm is even and 0 else
+			//int i1 = exp2(n-1) + floor(i * exp2(n-m));
+			//int i2 = i1 - 1;
+			int weight = 2 * iota - 1; // 1 if i2nm is even and -1 else
+			int index = exp2(n-1) + (i2nm + iota + 1) / 2 - 1; // this has to be an integer! Is that a dangerous assumption?
+			dW[i] += exp2(0.5*(n-m-1)) * weight * Z[index];
 		}
 	}
+}
+
+inline std::vector<std::string> hierarchical2string(int m){
+	std::vector<std::string> dW(exp2(m), "");
+	std::stringstream ss;
+	for(int i=0; i<exp2(m); ++i){
+		ss.str("");
+		ss << exp2(-0.5*m) << " Z[0]";
+		for(int n=1; n<=m; ++n){
+			int i2nm = floor(i * exp2(n - m));
+			int iota = (i2nm + 1) % 2; // = 1 if i2nm is even and 0 else
+			//int i1 = exp2(n-1) + floor(i * exp2(n-m));
+			//int i2 = i1 - 1;
+			int weight = 2 * iota - 1; // 1 if i2nm is even and -1 else
+			int index = exp2(n-1) + (i2nm + iota + 1) / 2 - 1; // "-1" due to C style array indexing
+			ss << " + " << exp2(0.5*(n-m-1)) * weight << " Z[" << index << "]";
+		}
+		dW[i] = ss.str();
+	}
+	return dW;
+}
+
+// For debugging purposes: compute the "expected" variances of increments given
+inline Vector hierarchical2incrementsVar(int m){
+	Vector var(exp2(m), 0.0);
+	for(int i=0; i<exp2(m); ++i){
+		var[i] = pow(exp2(-0.5*m), 2);
+		for(int n=1; n<=m; ++n){
+			int i2nm = floor(i * exp2(n - m));
+			int iota = (i2nm + 1) % 2; // = 1 if i2nm is even and 0 else
+			//int i1 = exp2(n-1) + floor(i * exp2(n-m));
+			//int i2 = i1 - 1;
+			int weight = 2 * iota - 1; // 1 if i2nm is even and -1 else
+			int index = exp2(n-1) + (i2nm + iota + 1) / 2 - 1; // this has to be an integer! Is that a dangerous assumption?
+			var[i] += pow(exp2(0.5*(n-m-1)) * weight, 2);
+		}
+	}
+	return var;
 }
 
 // Compute sample variances

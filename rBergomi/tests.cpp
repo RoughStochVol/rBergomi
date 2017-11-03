@@ -30,7 +30,6 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 
 	const double epsilon = 0.005;
 
-	/*
 	SECTION("Single-threaded pricing:") {
 		// Check that the price is within epsilon from the confidence interval around the true price
 		//Result res = rBergomi.ComputePrice();
@@ -147,8 +146,9 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 		}
 		for (int i = 0; i < 4; ++i)
 			REQUIRE(fabs(price[i] - truePrice[i]) < epsilon + 2*stat[i]);
-	}*/
+	}
 
+	/*
 	SECTION("Basic testing of hierarchical representation:"){
 		// generate the normals
 		std::vector<Vector> Z1Arr(M, Vector(steps));
@@ -167,11 +167,39 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 		Vector varW1 = sampleVar(W1Arr);
 
 
+		// Check that variances are close to 1
+		double max_diff_Z1 = 0.0;
+		double max_diff_W1 = 0.0;
+		for(size_t i = 0; i < varZ1.size(); ++i){
+			double diff1 = fabs(varZ1[i] - 1.0);
+			if(diff1 > max_diff_Z1)
+				max_diff_Z1 = diff1;
+			double diff2 = fabs(varW1[i] - 1.0);
+			if(diff2 > max_diff_W1)
+				max_diff_W1 = diff2;
+		}
+
+		REQUIRE( max_diff_Z1 < 2.0 * epsilon);
+		REQUIRE( max_diff_W1 < 2.0 * epsilon);
+	}
+
+	SECTION("Basic testing of hierarchical representation 2:"){
+		// generate the normals
+		Vector var = hierarchical2incrementsVar(log2(steps));
 		// print variances
-		std::cout << "Var before hierarchical transform:\n" << varZ1 << std::endl;
-		std::cout << "Var after hierarchical transform:\n" << varW1 << std::endl;
+		//std::cout << "Var before hierarchical transform:\n" << varZ1 << std::endl;
+		std::cout << "Theoretical var after hierarchical transform:\n" << var << std::endl;
+
+		// Strange: the actual sample variance does not work, but the theoretical one does. Is there some problem with the input???
+		// Or maybe with the computation of the "index" in hierarchical2increments?
+
+		// Try explicit formula
+		auto dW = hierarchical2string(log2(steps));
+		// plot out the last entry
+		std::cout << "dW[" << steps - 1 << "]:\n" << dW[steps-1] << std::endl;
 
 		// Check that variances are close to 1
 
 	}
+	*/
 }
