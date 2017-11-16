@@ -611,3 +611,394 @@ std::vector<Vector> ComputePayoffRTsamples_ST(double xi, Vector H, Vector eta,
 
 	return payoffArr;
 }
+
+Result ComputePriceRTMT_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+			int numThreads){
+	// The random vectors; the first 3 are independent, Z is a composite
+	// Note that W1, W1perp, Wperp, Z correspond to UNNORMALIZED increments of Brownian motions,
+	// i.e., are i.i.d. standard normal.
+	Vector W1(N);
+	Vector W1perp(N);
+	Vector Wtilde(N);
+	Vector WtildeScaled(N); // Wtilde scaled according to time
+	Vector v(N);
+	Vector Z(2*N); // joint vector for W1 and W1perp
+	// In the sense of a hierarchical representation, we put the even entries of Z
+	// into W1 and the odd ones into W1perp. This is only a guess!!!!
+
+	double Ivdt, IsvdW; // \int v_s ds, \int \sqrt{v_s} dW_s; Here, W = W1; // maybe it is better to use a vector of S's corresponding to all different maturities!!
+	// This would need a major re-organization of the code, including ParamTot...
+
+	// The vectors of all combinations of parameter values and prices
+	ParamTot par(H, eta, rho, T, K, xi);
+
+	// A map of all vectors Gamma for all the different values of H.
+	std::map<double, Vector> GammaMap;
+	Vector GammaVec(N);
+	for (size_t i = 0; i < H.size(); ++i) {
+		getGamma(GammaVec, H[i]);
+		GammaMap[H[i]] = GammaVec;
+	}
+
+	// vectors of prices and variances
+	Vector price(par.size(), 0.0);
+	Vector var(par.size(), 0.0);
+
+	// other parameters used
+	double dt; // time increment
+	double sdt; // square root of time increment
+
+	// gather the data needed for the FFT
+	int nDFT = 2 * N - 1;
+	fftData fft(nDFT, numThreads);
+
+	// gather the RNG
+	//RNG rng(numThreads, seed);
+
+	// Enforce that OMP use numThreads threads
+	omp_set_dynamic(0);     // Explicitly disable dynamic teams
+	omp_set_num_threads(numThreads);
+
+	// The big loop which needs to be parallelized in future
+	#pragma omp parallel \
+		firstprivate(W1, Wtilde, WtildeScaled, v, Z, GammaMap), \
+		private(Ivdt, IsvdW, dt, sdt)
+	{
+		Vector price_private(par.size(), 0.0);
+		Vector var_private(par.size(), 0.0);
+		#pragma omp for
+		for (int m = 0; m < M; ++m) {
+			// generate the fundamental Gaussians; The underlying Sobol'-code is not thread-safe, so...
+			#pragma omp critical
+			{
+				normalQMC_sample(Z, 2*N, m+1); // m = 0 hits the singularity!
+			}
+			breakZ(Z, W1, W1perp);
+			//genGaussianMT(W1, rng, omp_get_thread_num());
+			//genGaussianMT(W1perp, rng, omp_get_thread_num());
+
+			// now iterate through all parameters
+			for (long i = 0; i < par.size(); ++i) {
+				// Note that each of the changes here forces all subsequent updates!
+				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
+				bool update = par.HTrigger(i);
+				if (update)
+					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
+							omp_get_thread_num(), nDFT);
+				// check if T has changed. If so, Wtilde and the time increment need re-scaling
+				update = update || par.TTrigger(i);
+				if (update) {
+					scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+					dt = par.T(i) / N;
+					sdt = sqrt(dt);
+				}
+				// check if eta has changed. If so, v needs to be updated
+				update = update || par.etaTrigger(i);
+				if (update)
+					updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
+				// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
+				Ivdt = intVdt(v, dt);
+				IsvdW = intRootVdW(v, W1, sdt);
+
+				// now compute the payoff by inserting properly into the BS formula
+				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
+				double BS_spot = exp(
+						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
+								* IsvdW);
+				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+				price_private[i] += payoff;
+				var_private[i] += payoff * payoff;
+			}
+		}
+		// now sum all the prices and variances from the individual threads
+		#pragma omp critical
+		{
+			for (long i = 0; i < par.size(); ++i) {
+				price[i] += price_private[i];
+				var[i] += var_private[i];
+			}
+		}
+	}
+
+	// compute mean and variance
+	scaleVector(price, 1.0 / double(M));
+	scaleVector(var, 1.0 / double(M)); // = E[X^2]
+	var = linearComb(1.0, var, -1.0, squareVector(price)); // = empirical var of price
+	Vector stat = rootVector(var);
+	scaleVector(stat, 1.0 / sqrt(double(M)));
+	Vector iv(par.size());
+	Result res { price, iv, par, stat, N, M, numThreads, 0.0 };
+
+	return res;
+}
+
+Result ComputeIVRTMT_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+			int numThreads){
+	Result res =
+			ComputePriceRTMT_sobol(xi, H, eta, rho, T, K, N, M, numThreads);
+	// Compute the implied vol for each price saved in res
+	for (long i = 0; i < res.par.size(); ++i) {
+		res.iv[i] = IV_call(res.price[i], 1.0, res.par.K(i), res.par.T(i));
+	}
+	return res;
+}
+
+Result ComputePriceRTST_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M){
+	// The random vectors; the first 3 are independent, Z is a composite
+	// Note that W1, W1perp, Wperp, Z correspond to UNNORMALIZED increments of Brownian motions,
+	// i.e., are i.i.d. standard normal.
+	Vector W1(N);
+	Vector W1perp(N);
+	Vector Wtilde(N);
+	Vector WtildeScaled(N); // Wtilde scaled according to time
+	Vector v(N);
+	Vector Z(2*N); // joint vector for W1 and W1perp
+	// In the sense of a hierarchical representation, we put the even entries of Z
+	// into W1 and the odd ones into W1perp. This is only a guess!!!!
+
+	double Ivdt, IsvdW; // \int v_s ds, \int \sqrt{v_s} dW_s; Here, W = W1; // maybe it is better to use a vector of S's corresponding to all different maturities!!
+	// This would need a major re-organization of the code, including ParamTot...
+
+	// The vectors of all combinations of parameter values and prices
+	ParamTot par(H, eta, rho, T, K, xi);
+
+	// A map of all vectors Gamma for all the different values of H.
+	std::map<double, Vector> GammaMap;
+	Vector GammaVec(N);
+	for (size_t i = 0; i < H.size(); ++i) {
+		getGamma(GammaVec, H[i]);
+		GammaMap[H[i]] = GammaVec;
+	}
+
+	// vectors of prices and variances
+	Vector price(par.size(), 0.0);
+	Vector var(par.size(), 0.0);
+
+	// other parameters used
+	double dt; // time increment
+	double sdt; // square root of time increment
+
+	// gather the data needed for the FFT
+	int nDFT = 2 * N - 1;
+	fftData fft(nDFT, 1);
+
+	// gather the RNG
+	//RNG rng(numThreads, seed);
+
+	{
+		Vector price_private(par.size(), 0.0);
+		Vector var_private(par.size(), 0.0);
+		for (int m = 0; m < M; ++m) {
+			// generate the fundamental Gaussians
+			normalQMC_sample(Z, 2*N, m+1);
+			breakZ(Z, W1, W1perp);
+			//genGaussianMT(W1, rng, omp_get_thread_num());
+			//genGaussianMT(W1perp, rng, omp_get_thread_num());
+
+			// now iterate through all parameters
+			for (long i = 0; i < par.size(); ++i) {
+				// Note that each of the changes here forces all subsequent updates!
+				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
+				bool update = par.HTrigger(i);
+				if (update)
+					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
+							0, nDFT);
+				// check if T has changed. If so, Wtilde and the time increment need re-scaling
+				update = update || par.TTrigger(i);
+				if (update) {
+					scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+					dt = par.T(i) / N;
+					sdt = sqrt(dt);
+				}
+				// check if eta has changed. If so, v needs to be updated
+				update = update || par.etaTrigger(i);
+				if (update)
+					updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
+				// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
+				Ivdt = intVdt(v, dt);
+				IsvdW = intRootVdW(v, W1, sdt);
+
+				// now compute the payoff by inserting properly into the BS formula
+				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
+				double BS_spot = exp(
+						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
+								* IsvdW);
+				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+				price_private[i] += payoff;
+				var_private[i] += payoff * payoff;
+			}
+		}
+		{
+			for (long i = 0; i < par.size(); ++i) {
+				price[i] += price_private[i];
+				var[i] += var_private[i];
+			}
+		}
+	}
+
+	// compute mean and variance
+	scaleVector(price, 1.0 / double(M));
+	scaleVector(var, 1.0 / double(M)); // = E[X^2]
+	var = linearComb(1.0, var, -1.0, squareVector(price)); // = empirical var of price
+	Vector stat = rootVector(var);
+	scaleVector(stat, 1.0 / sqrt(double(M)));
+	Vector iv(par.size());
+	Result res { price, iv, par, stat, N, M, 1, 0.0 };
+
+	return res;
+}
+
+Result ComputeIVRTST_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M){
+	Result res =
+			ComputePriceRTST_sobol(xi, H, eta, rho, T, K, N, M);
+	// Compute the implied vol for each price saved in res
+	for (long i = 0; i < res.par.size(); ++i) {
+		res.iv[i] = IV_call(res.price[i], 1.0, res.par.K(i), res.par.T(i));
+	}
+	return res;
+}
+
+void parallelSobol(int dim, int M){
+	Vector Z(dim);
+	std::cout << "Print out the QMC samples in a single-threaded code:\n";
+	for(int i=0; i<M; ++i){
+		normalQMC_sample(Z, dim, i+1);
+		std::cout << "Z[" << i << "] = " << Z << std::endl;
+	}
+
+	// Enforce that OMP use numThreads threads
+	omp_set_dynamic(0);     // Explicitly disable dynamic teams
+	omp_set_num_threads(8);
+	std::cout << "\n\nPrint out the QMC samples in a multi-threaded code:\n";
+	int seed = 0;
+	#pragma omp parallel firstprivate(Z, seed), shared(M, dim)
+	{
+		#pragma omp for
+		for(int i = 0; i<M; ++i){
+			#pragma omp critical
+			{
+				normalQMC_sample(Z, dim, i+1);
+			}
+			#pragma omp critical
+			{
+				std::cout << "Z[" << i << "] = " << Z << std::endl;
+			}
+		}
+	}
+}
+
+ResultUnordered ComputePriceRTMTunstructured(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+		int numThreads, std::vector<uint64_t> seed){
+	// The random vectors; the first 3 are independent, Z is a composite
+	// Note that W1, W1perp, Wperp, Z correspond to UNNORMALIZED increments of Brownian motions,
+	// i.e., are i.i.d. standard normal.
+	Vector W1(N);
+	Vector W1perp(N);
+	Vector Wtilde(N);
+	Vector WtildeScaled(N); // Wtilde scaled according to time
+	Vector v(N);
+
+	double Ivdt, IsvdW; // \int v_s ds, \int \sqrt{v_s} dW_s; Here, W = W1; // maybe it is better to use a vector of S's corresponding to all different maturities!!
+	// This would need a major re-organization of the code, including ParamTot...
+
+	// The vectors of all combinations of parameter values and prices
+	ParamTotUnordered par(H, eta, rho, T, K, xi);
+
+	// A map of all vectors Gamma for all the different values of H.
+	std::map<double, Vector> GammaMap;
+	Vector GammaVec(N);
+	for (size_t i = 0; i < H.size(); ++i) {
+		getGamma(GammaVec, H[i]);
+		GammaMap[H[i]] = GammaVec;
+	}
+
+	// vectors of prices and variances
+	Vector price(par.size(), 0.0);
+	Vector var(par.size(), 0.0);
+
+	// other parameters used
+	double dt; // time increment
+	double sdt; // square root of time increment
+
+	// gather the data needed for the FFT
+	int nDFT = 2 * N - 1;
+	fftData fft(nDFT, numThreads);
+
+	// gather the RNG
+	RNG rng(numThreads, seed);
+
+	// Enforce that OMP use numThreads threads
+	omp_set_dynamic(0);     // Explicitly disable dynamic teams
+	omp_set_num_threads(numThreads);
+
+	// The big loop which needs to be parallelized in future
+	// rng is firstprivate because of the shared dist
+	// Also try what happens if rng is shared... Has negligible effect on MAC, but does not make it work in WIAS
+	#pragma omp parallel \
+		firstprivate(W1, Wtilde, WtildeScaled, v, rng, GammaMap), \
+		private(Ivdt, IsvdW, dt, sdt)
+	{
+		Vector price_private(par.size(), 0.0);
+		Vector var_private(par.size(), 0.0);
+		#pragma omp for
+		for (int m = 0; m < M; ++m) {
+			// generate the fundamental Gaussians
+			genGaussianMT(W1, rng, omp_get_thread_num());
+			genGaussianMT(W1perp, rng, omp_get_thread_num());
+
+			// now iterate through all parameters
+			for (long i = 0; i < par.size(); ++i) {
+				// In the unordered case, we assume that all parameters change continuously.
+				updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
+							omp_get_thread_num(), nDFT);
+				scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+				dt = par.T(i) / N;
+				sdt = sqrt(dt);
+				updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
+				Ivdt = intVdt(v, dt);
+				IsvdW = intRootVdW(v, W1, sdt);
+
+				// now compute the payoff by inserting properly into the BS formula
+				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
+				double BS_spot = exp(
+						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
+								* IsvdW);
+				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+				price_private[i] += payoff;
+				var_private[i] += payoff * payoff;
+			}
+		}
+		// now sum all the prices and variances from the individual threads
+		#pragma omp critical
+		{
+			for (long i = 0; i < par.size(); ++i) {
+				price[i] += price_private[i];
+				var[i] += var_private[i];
+			}
+		}
+	}
+
+	// compute mean and variance
+	scaleVector(price, 1.0 / double(M));
+	scaleVector(var, 1.0 / double(M)); // = E[X^2]
+	var = linearComb(1.0, var, -1.0, squareVector(price)); // = empirical var of price
+	Vector stat = rootVector(var);
+	scaleVector(stat, 1.0 / sqrt(double(M)));
+	Vector iv(par.size());
+	ResultUnordered res { price, iv, par, stat, N, M, numThreads, 0.0 };
+
+	return res;
+}
+ResultUnordered ComputeIVRTMTunstructured(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+		int numThreads, std::vector<uint64_t> seed){
+	ResultUnordered res =
+			ComputePriceRTMTunstructured(xi, H, eta, rho, T, K, N, M, numThreads, seed);
+	// Compute the implied vol for each price saved in res
+	for (long i = 0; i < res.par.size(); ++i) {
+		res.iv[i] = IV_call(res.price[i], 1.0, res.par.K(i), res.par.T(i));
+	}
+	return res;
+}

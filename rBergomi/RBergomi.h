@@ -58,6 +58,17 @@ struct Result {
 	double time; // run time? Maybe more sophisticated?
 };
 
+struct ResultUnordered {
+	Vector price; // prices for each combination of (H, eta, rho) and (T,K)
+	Vector iv; // only one of price and iv is computed! The other is set to NA or something like it.
+	ParamTotUnordered par; // vectors of all the parameter combinations corresponding to prices and iv's
+	Vector stat; // statistical errors
+	int N;
+	long M;
+	int numThreads;
+	double time; // run time? Maybe more sophisticated?
+};
+
 class RBergomiST {
 private:
 	double xi;

@@ -27,3 +27,21 @@ ParamTot::ParamTot(Vector h, Vector e, Vector r, Vector t, Vector k, double x) {
 	eps = 0.0000000001;
 	xiV = x;
 }
+
+ParamTotUnordered::ParamTotUnordered() {
+	xi = 0.0;
+}
+
+ParamTotUnordered::ParamTotUnordered(Vector h, Vector e, Vector r, Vector t, Vector k, double x) {
+	// Check that all input vector have the same size.
+	if((h.size() != e.size()) || (h.size() != r.size()) || (h.size() != t.size()) || (h.size() != k.size())){
+		std::cerr << "Input vectors do not have the same sizes.\n";
+		exit(47);
+	}
+	H = h;
+	eta = e;
+	rho = r;
+	T = t;
+	K = k;
+	xi = x;
+}

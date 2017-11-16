@@ -5,6 +5,9 @@
  *
  * It may be better to re-order: H ordered first, then T, then eta, then rho, then K.
  *
+ * ParamTotUnordered makes no assumption on oredering of parameter: instead,
+ * no combinations of parameter vectors are considered.
+ *
  *  Created on: Nov 17, 2016
  *      Author: bayerc
  */
@@ -14,6 +17,8 @@
 
 #include<vector>
 #include<cmath>
+#include<iostream>
+#include<cstdlib>
 
 typedef std::vector<double> Vector;
 
@@ -47,6 +52,26 @@ public:
 	inline bool rhoTrigger(long I) const {return (I == 0) || (fabs(rho(I) - rho(I-1)) > eps);}
 	inline bool TTrigger(long I) const {return (I == 0) || (fabs(T(I) - T(I-1)) > eps);}
 	// note that K is always supposed to be triggered!
+};
+
+class ParamTotUnordered{
+private:
+	Vector H;
+	Vector eta;
+	Vector rho;
+	Vector T;
+	Vector K;
+	double xi;
+public:
+	ParamTotUnordered();
+	ParamTotUnordered(Vector h, Vector e, Vector r, Vector t, Vector k, double x);
+	inline double H(long I) const {return H[I];}
+	inline double eta(long I) const {return eta[I];}
+	inline double rho(long I) const {return rho[I];}
+	inline double T(long I) const {return T[I];}
+	inline double K(long I) const {return K[I];}
+	inline long size() const {return H.size();}
+	inline double xi() const {return xi;}
 };
 
 #endif /* PARAMTOT_H_ */

@@ -8,10 +8,17 @@
  */
 
 //#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
-#include"catch.hpp"
+#include <chrono>
+#include <iostream>
+#include "catch.hpp"
 #include "RBergomi.h"
 #include "rBergomiMT.h"
 #include "BlackScholes.h"
+#include "qmc.h"
+
+using Clock = std::chrono::steady_clock;
+using std::chrono::duration_cast;
+using std::chrono::milliseconds;
 
 TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 {
@@ -30,6 +37,7 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 
 	const double epsilon = 0.005;
 
+	/*
 	SECTION("Single-threaded pricing:") {
 		// Check that the price is within epsilon from the confidence interval around the true price
 		//Result res = rBergomi.ComputePrice();
@@ -148,7 +156,16 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 			REQUIRE(fabs(price[i] - truePrice[i]) < epsilon + 2*stat[i]);
 	}
 
-	/*
+	SECTION("Sobol' normal numbers:"){
+		// compare against R's randtoolbox.
+		std::vector<Vector> X = normalQMC(2, 2);
+		Vector ref1{0.0, 0.0};
+		Vector ref2{0.6744898, -0.6744898};
+		double dist = fabs(X[0][0] - ref1[0]) + fabs(X[0][1] -
+				ref1[1]) + fabs(X[1][0] - ref2[0]) + fabs(X[1][1] - ref2[1]);
+		REQUIRE(dist < epsilon / 1000);
+	}
+
 	SECTION("Basic testing of hierarchical representation:"){
 		// generate the normals
 		std::vector<Vector> Z1Arr(M, Vector(steps));
@@ -200,6 +217,53 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 
 		// Check that variances are close to 1
 
+	}
+	*/
+
+	SECTION("Single-threaded pricing with Romano-Touzi trick and SOBOL numbers:") {
+		auto start = Clock::now();
+		Result res = ComputeIVRTST_sobol(xi, H, eta, rho, T, K, steps, M);
+		auto end = Clock::now();
+		auto diff = duration_cast<milliseconds> (end - start);
+		std::cout << "Single threaded Sobol: " << diff.count() << "ms\n";
+
+		for (int i = 0; i < 4; ++i)
+			REQUIRE(fabs(res.price[i] - truePrice[i]) < epsilon + 2*res.stat[i]);
+
+		Vector trueVol(truePrice.size());
+		trueVol[0] = IV_call(truePrice[0], 1.0, K[0], T[0]);
+		trueVol[1] = IV_call(truePrice[1], 1.0, K[1], T[1]);
+		trueVol[2] = IV_call(truePrice[2], 1.0, K[0], T[0]);
+		trueVol[3] = IV_call(truePrice[3], 1.0, K[1], T[1]);
+
+		for (int i = 0; i < 4; ++i)
+			REQUIRE(fabs(res.iv[i] - trueVol[i]) < epsilon + 2*res.stat[i]);
+	}
+
+
+	SECTION("Multi-threaded pricing with Romano-Touzi trick and SOBOL numbers:") {
+		auto start = Clock::now();
+		Result res = ComputeIVRTMT_sobol(xi, H, eta, rho, T, K, steps, M, numThreads);
+		auto end = Clock::now();
+		auto diff = duration_cast<milliseconds> (end - start);
+		std::cout << "Multi threaded Sobol: " << diff.count() << "ms\n";
+
+		for (int i = 0; i < 4; ++i)
+			REQUIRE(fabs(res.price[i] - truePrice[i]) < epsilon + 2*res.stat[i]);
+
+		Vector trueVol(truePrice.size());
+		trueVol[0] = IV_call(truePrice[0], 1.0, K[0], T[0]);
+		trueVol[1] = IV_call(truePrice[1], 1.0, K[1], T[1]);
+		trueVol[2] = IV_call(truePrice[2], 1.0, K[0], T[0]);
+		trueVol[3] = IV_call(truePrice[3], 1.0, K[1], T[1]);
+
+		for (int i = 0; i < 4; ++i)
+			REQUIRE(fabs(res.iv[i] - trueVol[i]) < epsilon + 2*res.stat[i]);
+		}
+
+	/*
+	SECTION("Multithreaded SOBOL:"){
+		parallelSobol(3, 16);
 	}
 	*/
 }

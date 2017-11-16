@@ -10,6 +10,7 @@
 #include<sstream>
 #include<cstdlib>
 #include<cmath>
+#include<algorithm>
 #include<fftw3.h>
 #include"ParamTot.h"
 
@@ -178,4 +179,19 @@ inline Vector sampleVar(std::vector<Vector> Z){
 	scaleVector(sample_var, 1.0/M);
 	sample_var = linearComb(1.0, sample_var, -1.0, squareVector(sample_mean));
 	return sample_var;
+}
+
+// Put even indices of z into x1 and odd ones into x2
+inline void breakZ(const Vector& z, Vector& x1, Vector& x2){
+	for(size_t i = 0; i < x1.size(); ++i){
+		x1[i] = z[2*i];
+		x2[i] = z[2*i+1];
+	}
+}
+
+// return the minimal value in a vector
+template <typename T>
+T minVec(const std::vector<T>& x){
+	auto iter = std::min_element(x.begin(), x.end());
+	return *iter;
 }

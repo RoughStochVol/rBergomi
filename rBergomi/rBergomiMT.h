@@ -15,6 +15,7 @@
 #include<map>
 #include<cstdlib>
 #include"RBergomi.h"
+#include "qmc.h"
 
 // Define a struct for holding the complex arrays used by fftw3.
 // We actually use pointers to pointers since we implement one array
@@ -107,6 +108,34 @@ std::vector<Vector> ComputePayoffRTsamples(double xi, Vector H, Vector eta, Vect
 std::vector<Vector> ComputePayoffRTsamples_ST(double xi, Vector H, Vector eta,
 		Vector rho, Vector T, Vector K, const std::vector<Vector> & W1Arr,
 		const std::vector<Vector> & W1perpArr);
+
+// Compute Price with RT-trick based on Sobol' numbers.
+// Note that this is not based on ComputePayoffRTsamples.
+Result ComputePriceRTMT_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+			int numThreads);
+
+// single threaded version for debugging
+Result ComputePriceRTST_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M);
+
+// Compute implied vols (with Romano-Touzi trick)
+Result ComputeIVRTMT_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+			int numThreads);
+
+Result ComputeIVRTST_sobol(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M);
+
+// Debug the combination of openmp and Sobol
+void parallelSobol(int dim, int M);
+
+// Compute prices based on unstructured vectors of parameters.
+// Unstructured here means that there is no duplication of parameters, the prices are computed
+// for the exact combination of parameter values provided by the user.
+// Attention: If there is a structure as described above, the unstructured version of the code
+// cannot take advantage and is likely slower.
+// Prices as well as implied vols are provided.
+ResultUnordered ComputePriceRTMTunstructured(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+		int numThreads, std::vector<uint64_t> seed);
+ResultUnordered ComputeIVRTMTunstructured(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
+		int numThreads, std::vector<uint64_t> seed);
 
 // auxiliary functions needed by Romano-Touzi approach
 // integrate v w.r.t. time
