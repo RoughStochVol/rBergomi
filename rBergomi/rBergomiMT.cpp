@@ -85,7 +85,7 @@ void updateV(Vector & v, const Vector & WtildeScaled, double xi, double H,
 // Here we need to be careful due to the parallelization...
 void updateWtilde(Vector & Wtilde, const Vector & W1, const Vector & W1perp,
 		double H, std::map<double, Vector> GammaMap, fftData& fft,
-		int threadID, int nDFT) {
+		int nDFT) {
 	int N = Wtilde.size();
 	double s2H = sqrt(2.0 * H);
 	double rhoH = s2H / (H + 0.5);
@@ -93,18 +93,18 @@ void updateWtilde(Vector & Wtilde, const Vector & W1, const Vector & W1perp,
 	Vector Y2(N); // see R code
 	// Convolve W1 and Gamma
 	// Copy W1 and Gamma to complex arrays
-	copyToComplex(nDFT, W1, fft.xC[threadID]);
-	copyToComplex(nDFT, GammaMap[H], fft.yC[threadID]);
+	copyToComplex(nDFT, W1, fft.xC[omp_get_thread_num()]);
+	copyToComplex(nDFT, GammaMap[H], fft.yC[omp_get_thread_num()]);
 	// DFT both
-	fftw_execute(fft.fPlanX[threadID]); // DFT saved in xHat[0]
-	fftw_execute(fft.fPlanY[threadID]); // DFT saved in yHat[0]
+	fftw_execute(fft.fPlanX[omp_get_thread_num()]); // DFT saved in xHat[0]
+	fftw_execute(fft.fPlanY[omp_get_thread_num()]); // DFT saved in yHat[0]
 	// multiply xHat and yHat and save in zHat
-	complexMult(nDFT, fft.xHat[threadID], fft.yHat[threadID],
-			fft.zHat[threadID]);
+	complexMult(nDFT, fft.xHat[omp_get_thread_num()], fft.yHat[omp_get_thread_num()],
+			fft.zHat[omp_get_thread_num()]);
 	// inverse DFT zHat
-	fftw_execute(fft.fPlanZ[threadID]);
+	fftw_execute(fft.fPlanZ[omp_get_thread_num()]);
 	// read out the real part, re-scale by 1/nDFT
-	copyToReal(Y2, fft.zC[threadID]);
+	copyToReal(Y2, fft.zC[omp_get_thread_num()]);
 	scaleVector(Y2, 1.0 / nDFT);
 	// Wtilde = (Y2 + W1hat) * sqrt(2*H) * dt^H ??
 	Wtilde = linearComb(sqrt(2.0 * H) * pow(1.0 / N, H), Y2,
@@ -243,8 +243,7 @@ Result ComputePriceMT(double xi, Vector H, Vector eta, Vector rho, Vector T,
 				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
 				bool update = par.HTrigger(i);
 				if (update)
-					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
-							omp_get_thread_num(), nDFT);
+					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, nDFT);
 				// check if T has changed. If so, Wtilde and the time increment need re-scaling
 				update = update || par.TTrigger(i);
 				if (update) {
@@ -270,7 +269,7 @@ Result ComputePriceMT(double xi, Vector H, Vector eta, Vector rho, Vector T,
 			}
 		}
 		// now sum all the prices and variances from the individual threads
-#pragma omp critical
+		#pragma omp critical
 		{
 			for (long i = 0; i < par.size(); ++i) {
 				price[i] += price_private[i];
@@ -362,12 +361,12 @@ Result ComputePriceRTMT(double xi, Vector H, Vector eta, Vector rho, Vector T,
 
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
+
 				// Note that each of the changes here forces all subsequent updates!
 				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
 				bool update = par.HTrigger(i);
 				if (update)
-					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
-							omp_get_thread_num(), nDFT);
+					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, nDFT);
 				// check if T has changed. If so, Wtilde and the time increment need re-scaling
 				update = update || par.TTrigger(i);
 				if (update) {
@@ -389,6 +388,9 @@ Result ComputePriceRTMT(double xi, Vector H, Vector eta, Vector rho, Vector T,
 						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
 								* IsvdW);
 				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+				//double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
+				//						GammaMap, fft, nDFT, N, omp_get_thread_num());
 
 				price_private[i] += payoff;
 				var_private[i] += payoff * payoff;
@@ -491,6 +493,7 @@ std::vector<Vector> ComputePayoffRTsamples(double xi, Vector H, Vector eta,
 			W1perp = W1perpArr[m];
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
+				/*
 				// Note that each of the changes here forces all subsequent updates!
 				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
 				bool update = par.HTrigger(i);
@@ -518,6 +521,9 @@ std::vector<Vector> ComputePayoffRTsamples(double xi, Vector H, Vector eta,
 						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
 								* IsvdW);
 				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+				*/
+				double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
+										GammaMap, fft, nDFT, N, omp_get_thread_num());
 
 				// collect payoff
 				payoffArr[m][i] = payoff;
@@ -577,12 +583,12 @@ std::vector<Vector> ComputePayoffRTsamples_ST(double xi, Vector H, Vector eta,
 
 		// now iterate through all parameters
 		for (long i = 0; i < par.size(); ++i) {
+
 			// Note that each of the changes here forces all subsequent updates!
 			// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
 			bool update = par.HTrigger(i);
 			if (update)
-				updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, 0,
-						nDFT);
+				updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,nDFT);
 			// check if T has changed. If so, Wtilde and the time increment need re-scaling
 			update = update || par.TTrigger(i);
 			if (update) {
@@ -603,6 +609,9 @@ std::vector<Vector> ComputePayoffRTsamples_ST(double xi, Vector H, Vector eta,
 			double BS_spot = exp(
 					-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i) * IsvdW);
 			double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+			//double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
+			//						GammaMap, fft, nDFT, N, omp_get_thread_num());
 
 			// collect payoff
 			payoffArr[m][i] = payoff;
@@ -679,6 +688,7 @@ Result ComputePriceRTMT_sobol(double xi, Vector H, Vector eta, Vector rho, Vecto
 
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
+				/*
 				// Note that each of the changes here forces all subsequent updates!
 				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
 				bool update = par.HTrigger(i);
@@ -706,6 +716,9 @@ Result ComputePriceRTMT_sobol(double xi, Vector H, Vector eta, Vector rho, Vecto
 						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
 								* IsvdW);
 				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+				*/
+				double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
+										GammaMap, fft, nDFT, N, omp_get_thread_num());
 
 				price_private[i] += payoff;
 				var_private[i] += payoff * payoff;
@@ -798,6 +811,7 @@ Result ComputePriceRTST_sobol(double xi, Vector H, Vector eta, Vector rho, Vecto
 
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
+				/*
 				// Note that each of the changes here forces all subsequent updates!
 				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
 				bool update = par.HTrigger(i);
@@ -825,6 +839,9 @@ Result ComputePriceRTST_sobol(double xi, Vector H, Vector eta, Vector rho, Vecto
 						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
 								* IsvdW);
 				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+				*/
+				double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
+						GammaMap, fft, nDFT, N, omp_get_thread_num());
 
 				price_private[i] += payoff;
 				var_private[i] += payoff * payoff;
@@ -950,6 +967,7 @@ ResultUnordered ComputePriceRTMTunstructured(double xi, Vector H, Vector eta, Ve
 
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
+				/*
 				// In the unordered case, we assume that all parameters change continuously.
 				updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
 							omp_get_thread_num(), nDFT);
@@ -966,6 +984,9 @@ ResultUnordered ComputePriceRTMTunstructured(double xi, Vector H, Vector eta, Ve
 						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
 								* IsvdW);
 				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+				 */
+				double payoff = updatePayoffUnordered(par, xi, i, Wtilde, WtildeScaled, W1,
+						W1perp, v, GammaMap, fft, nDFT, N, omp_get_thread_num());
 
 				price_private[i] += payoff;
 				var_private[i] += payoff * payoff;
@@ -992,6 +1013,7 @@ ResultUnordered ComputePriceRTMTunstructured(double xi, Vector H, Vector eta, Ve
 
 	return res;
 }
+
 ResultUnordered ComputeIVRTMTunstructured(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
 		int numThreads, std::vector<uint64_t> seed){
 	ResultUnordered res =
@@ -1000,5 +1022,264 @@ ResultUnordered ComputeIVRTMTunstructured(double xi, Vector H, Vector eta, Vecto
 	for (long i = 0; i < res.par.size(); ++i) {
 		res.iv[i] = IV_call(res.price[i], 1.0, res.par.K(i), res.par.T(i));
 	}
+	return res;
+}
+
+double updatePayoffUnordered(ParamTotUnordered& par, double xi, long i, Vector& Wtilde,
+		Vector& WtildeScaled, Vector& W1, Vector& W1perp, Vector& v,
+		std::map<double, Vector>& GammaMap, fftData& fft, int nDFT, int N, int threadID){
+	updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, nDFT);
+	scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+	double dt = par.T(i) / N;
+	double sdt = sqrt(dt);
+	updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
+	double Ivdt = intVdt(v, dt);
+	double IsvdW = intRootVdW(v, W1, sdt);
+
+	// now compute the payoff by inserting properly into the BS formula
+	double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
+	double BS_spot = exp(
+			-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
+					* IsvdW);
+	double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+	return payoff;
+}
+
+double updatePayoff(const ParamTot& par, double xi, long i, Vector& Wtilde,
+		Vector& WtildeScaled, const Vector& W1, const Vector& W1perp, Vector& v,
+		const std::map<double, Vector>& GammaMap, fftData& fft, int nDFT, int N, int threadID){
+		// Note that each of the changes here forces all subsequent updates!
+		// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
+		bool update = par.HTrigger(i);
+		// Bugfix:
+		/*
+		#pragma omp critical
+		{
+		std::cout << "update = " << update
+				<< "\nW1 = (" << W1[0] << ", " << W1[1] << ",...)"
+				<<  "\nW1perp = (" << W1perp[0] << ", " << W1perp[1] << ",...)"
+				<< "\nH = " << par.H(i)
+				<< "\nThread = " << threadID << '\n';
+		}
+		*/
+		if (update)
+			updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, nDFT);
+		// check if T has changed. If so, Wtilde and the time increment need re-scaling
+		update = update || par.TTrigger(i);
+		if (update) {
+			scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+		}
+		double dt = par.T(i) / N;
+		double sdt = sqrt(dt);
+		// check if eta has changed. If so, v needs to be updated
+		update = update || par.etaTrigger(i);
+		if (update)
+			updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
+		// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
+		double Ivdt = intVdt(v, dt);
+		double IsvdW = intRootVdW(v, W1, sdt);
+
+		// now compute the payoff by inserting properly into the BS formula
+		double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
+		double BS_spot = exp(
+				-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
+						* IsvdW);
+		double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+		return payoff;
+}
+
+// Test the updatePayoff function.
+Result test_updatePayoff(double xi, Vector H, Vector eta, Vector rho, Vector T,
+		Vector K, int N, long M, int numThreads, std::vector<uint64_t> seed) {
+	// The random vectors; the first 3 are independent, Z is a composite
+	// Note that W1, W1perp, Wperp, Z correspond to UNNORMALIZED increments of Brownian motions,
+	// i.e., are i.i.d. standard normal.
+	Vector W1(N);
+	Vector W1perp(N);
+	Vector Wtilde(N);
+	Vector WtildeScaled(N); // Wtilde scaled according to time
+	Vector v(N);
+	Vector Wtilde_new(N);
+	Vector WtildeScaled_new(N); // Wtilde scaled according to time
+	Vector v_new(N);
+
+	double Ivdt, IsvdW; // \int v_s ds, \int \sqrt{v_s} dW_s; Here, W = W1; // maybe it is better to use a vector of S's corresponding to all different maturities!!
+	// This would need a major re-organization of the code, including ParamTot...
+
+	// The vectors of all combinations of parameter values and prices
+	ParamTot par(H, eta, rho, T, K, xi);
+
+	// A map of all vectors Gamma for all the different values of H.
+	std::map<double, Vector> GammaMap;
+	Vector GammaVec(N);
+	for (size_t i = 0; i < H.size(); ++i) {
+		getGamma(GammaVec, H[i]);
+		GammaMap[H[i]] = GammaVec;
+	}
+
+	// vectors of prices and variances
+	Vector price(par.size(), 0.0);
+	Vector var(par.size(), 0.0);
+
+	// other parameters used
+	double dt; // time increment
+	double sdt; // square root of time increment
+
+	// gather the data needed for the FFT
+	int nDFT = 2 * N - 1;
+	fftData fft(nDFT, numThreads);
+
+	// gather the RNG
+	RNG rng(numThreads, seed);
+
+	// Enforce that OMP use numThreads threads
+	omp_set_dynamic(0);     // Explicitly disable dynamic teams
+	omp_set_num_threads(numThreads);
+
+	// The big loop which needs to be parallelized in future
+	// rng is firstprivate because of the shared dist
+	// Also try what happens if rng is shared... Has negligible effect on MAC, but does not make it work in WIAS
+	#pragma omp parallel \
+		firstprivate(W1, Wtilde, Wtilde_new, WtildeScaled, WtildeScaled_new, v, v_new, rng, GammaMap), \
+		private(Ivdt, IsvdW, dt, sdt)
+	{
+		Vector price_private(par.size(), 0.0);
+		Vector var_private(par.size(), 0.0);
+		#pragma omp for
+		for (int m = 0; m < M; ++m) {
+			// generate the fundamental Gaussians
+			//genGaussianMT(W1, rng, omp_get_thread_num());
+			//genGaussianMT(W1perp, rng, omp_get_thread_num());
+			debugFillVector(W1, m);
+			debugFillVector(W1perp, m);
+
+
+			// now iterate through all parameters
+			for (long i = 0; i < par.size(); ++i) {
+
+
+				// Note that each of the changes here forces all subsequent updates!
+				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
+				bool update = par.HTrigger(i);
+/*
+				#pragma omp critical
+				{
+					std::cout << "update = " << update
+							<< "\nW1 = (" << W1[0] << ", " << W1[1] << ",...)"
+							<<  "\nW1perp = (" << W1perp[0] << ", " << W1perp[1] << ",...)"
+							<< "\nH = " << par.H(i)
+							<< "\nThread = " << omp_get_thread_num() << '\n';
+				}
+*/
+				if (update)
+					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, nDFT);
+
+/*
+				#pragma omp critical
+{
+	std::cout << "\nWtilde = " << Wtilde << '\n';
+}
+*/
+				// check if T has changed. If so, Wtilde and the time increment need re-scaling
+
+				update = update || par.TTrigger(i);
+				if (update) {
+					scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+					dt = par.T(i) / N;
+					sdt = sqrt(dt);
+				}
+				// check if eta has changed. If so, v needs to be updated
+				update = update || par.etaTrigger(i);
+				if (update)
+					updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
+				// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
+				Ivdt = intVdt(v, dt);
+				IsvdW = intRootVdW(v, W1, sdt);
+
+				// now compute the payoff by inserting properly into the BS formula
+				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
+				double BS_spot = exp(
+						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
+								* IsvdW);
+				double payoff_old = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+
+
+				//double payoff_new =  updatePayoff(par, xi, i, Wtilde_new, WtildeScaled_new, W1, W1perp, v_new,
+													//	GammaMap, fft, nDFT, N, omp_get_thread_num());
+
+				// Print old and new payoff
+				# pragma omp critical
+				{
+					//if(fabs(payoff_old - payoff_new) > 0.00000001)
+					{
+						/*if(fabs(payoff_old - payoff_new) > 0.00000001){
+							std::cout << "\033[1;31mDifference detected!\033[0m\n";
+							std::cout << "Wtilde - Wtilde_new = " << linearComb(1.0, Wtilde, -1.0, Wtilde_new) << "\n";
+						}
+						else{
+							std::cout << "\033[1;32mNo difference detected!\033[0m\n";
+						}*/
+						//std::cout << "m = " << m << ", threadID = " << omp_get_thread_num() << ", i = " << i << "\n";
+						//std::cout << "Payoff (old) = " << payoff_old << ", payoff (new) = " << payoff_new << "\n";
+						std::cout << m << " " << payoff_old << '\n';
+						/*std::cout << "For old code: Ivdt = " << Ivdt << ", IsvdW = " << IsvdW << "\nBS_vol = " << BS_vol
+								<< ", BS_spot = " << BS_spot
+								<< "\nv = " << v
+								<< "\ndt = " << dt
+								<< "\n\n";*/
+					}
+					// No NaN's appear when I use just 1 thread -> seems to be a multi-threading issue!
+					// Note: NaN started to appear in the old payoff when v (as constructed in the new function)
+					// did not need to be updated. Let us next fully separate old and new variables.
+					// NaN-BUG RESOLVED!
+					// Bug: payoff_old and payoff_new routinely give different values.
+					// Note: Bug only appears when numThreads > 1.
+					// Check if it happens all the time, or only sometimes.
+					// The bug does not happen always. Note: payoff == 0 does not happen due to Romano-Touzi!
+					// Differences seem to come in batches...
+					// Changing the order between the function calls does not seem to matter.
+					// When the difference happens, it already leads to v - v_new != 0, otherwise they are equal.
+					// When the difference happens, it already leads to Wtilde - Wtilde_new != 0, otherwise they are equal.
+					// Only seems to happen when i == 0 or i == 1, but not every time.
+					// Next step: Figure out, which one is correct by comparing with results from 1 thread.
+					// In all observed cases for the deterministic example, the old code got it right, when the old code was
+					// called before the new one. Changing the order, the new code was correct.
+					// TODO: Tomorrow, implement the cubature version in the single-threaded class and
+					// then compare for the input given by debugFillVector!!!
+					// Comparison with single-threaded code:
+					// 1) (payoff_new before payoff_old): 20 cases run, 3 cases with diverging results, payoff_new correct 2 times,
+					//		the last time neither were correct.
+					// 2) (Payoff_old before payoff_new): 20 cases run, 4 cases with diverging results, payoff_old correct 4 times.
+					// Next run more extensive tests for only payoff_new and compare with ST code.
+					// Out of 200 samples, the multi-threaded code was wrong 41 times. Hence, the multi-threaded code is not trustworthy.
+					// Test for payoff_old: Out of 200 samples, the old version of the multi-threaded code was wrong 45 times.
+					// Replace "threadID" everywhere by calling omp_get_thread_num()
+				}
+
+				price_private[i] += payoff_old;
+				var_private[i] += payoff_old * payoff_old;
+			}
+		}
+		// now sum all the prices and variances from the individual threads
+		#pragma omp critical
+		{
+			for (long i = 0; i < par.size(); ++i) {
+				price[i] += price_private[i];
+				var[i] += var_private[i];
+			}
+		}
+	}
+
+	// compute mean and variance
+	scaleVector(price, 1.0 / double(M));
+	scaleVector(var, 1.0 / double(M)); // = E[X^2]
+	var = linearComb(1.0, var, -1.0, squareVector(price)); // = empirical var of price
+	Vector stat = rootVector(var);
+	scaleVector(stat, 1.0 / sqrt(double(M)));
+	Vector iv(par.size());
+	Result res { price, iv, par, stat, N, M, numThreads, 0.0 };
+
 	return res;
 }

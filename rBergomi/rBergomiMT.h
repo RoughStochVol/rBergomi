@@ -12,9 +12,11 @@
 #ifndef RBERGOMIMT_H_
 #define RBERGOMIMT_H_
 
-#include<map>
-#include<cstdlib>
-#include"RBergomi.h"
+#include <map>
+#include <cstdlib>
+#include <cmath> // for isnan
+#include <fenv.h>
+#include "RBergomi.h"
 #include "qmc.h"
 
 // Define a struct for holding the complex arrays used by fftw3.
@@ -22,7 +24,8 @@
 // for each thread.
 // ATTENTION: We have seen before that managing the copied resources
 // manually like this is not very efficient! I do not think that this would
-// be easy to do because of the fftw_plan-problem....
+// be easy to do because of the fftw_plan-problem...
+// TODO: Replace by std::vector of fftData, one for each thread?
 struct fftData{
 	int numThreads;
 	fftw_complex **xC; // one complex array (of size nDFT = 2*N-1) for each thread
@@ -48,7 +51,7 @@ struct RNG{
 
 // compute Wtilde as in terms of W1, W1perp, H by Pakkanenen et al.
 void updateWtilde(Vector& Wtilde, const Vector& W1, const Vector& W1perp, double H,
-		fftData& fft, int threadID, int nDFT);
+		fftData& fft, int nDFT);
 
 // compute Wtilde scaled to the interval [0,T]
 void scaleWtilde(Vector& WtildeScaled, const Vector& Wtilde, double T, double H);
@@ -82,6 +85,20 @@ void complexMult(int nDFT, const fftw_complex* x, const fftw_complex* y, fftw_co
 
 // generate Gaussians
 void genGaussianMT(Vector& X, RNG& rng, int threadID);
+
+// Compute the payoff using all the previous auxiliary functions, given a sample of the involved
+// Gaussian vectors.
+// There are two versions of the function, depending on whether the parameter structure is assumed
+// ordered or not.
+// Note that the function is only implemented for the Romano-Touzi case.
+double updatePayoffUnordered(ParamTotUnordered& par, double xi, long i, Vector& Wtilde,
+		Vector& WtildeScaled, Vector& W1, Vector& W1perp, Vector& v,
+		std::map<double, Vector>& GammaMap, fftData& fft, int nDFT, int N, int threadID);
+double updatePayoff(const ParamTot& par, double xi, long i, Vector& Wtilde,
+		Vector& WtildeScaled, const Vector& W1, const Vector& W1perp, Vector& v,
+		const std::map<double, Vector>& GammaMap, fftData& fft, int nDFT, int N, int threadID);
+
+
 
 // Compute the price
 Result ComputePriceMT(double xi, Vector H, Vector eta, Vector rho, Vector T, Vector K, int N, long M,
@@ -144,5 +161,8 @@ double intVdt(const Vector& v, double dt);
 // integrate sqaure root of v w.r.t. dW, with \Delta W = sdt * W1
 double intRootVdW(const Vector& v, const Vector& W1, double sdt);
 
+// test updatePayoff
+Result test_updatePayoff(double xi, Vector H, Vector eta, Vector rho, Vector T,
+		Vector K, int N, long M, int numThreads, std::vector<uint64_t> seed);
 
 #endif /* RBERGOMIMT_H_ */

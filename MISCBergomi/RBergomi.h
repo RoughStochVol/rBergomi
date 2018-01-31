@@ -44,8 +44,6 @@
 #include"BlackScholes.h"
 
 typedef std::vector<double> Vector;
-typedef std::mt19937_64 MTGenerator;
-typedef std::normal_distribution<double> normDist;
 
 struct Result {
 	Vector price; // prices for each combination of (H, eta, rho) and (T,K)
@@ -75,8 +73,6 @@ private:
 	int N;
 	int nDFT; // length of arrays for which DFT needs to be computed; = 2*N - 1 ???
 	long M;
-	MTGenerator gen;
-	normDist dist;
 	fftw_complex *xC; // one complex array (of size 2*N-1???)
 	fftw_complex *xHat;
 	fftw_complex *yC;
@@ -87,7 +83,6 @@ private:
 	fftw_plan fPlanY;
 	fftw_plan fPlanZ;
 	// some private methods
-	void setGen(std::vector<uint64_t> seed); // set up generators
 	// compute Wtilde as in terms of W1, W1perp, H by Pakkanenen et al.
 	void updateWtilde(Vector& Wtilde, const Vector& W1, const Vector& W1perp, double H);
 	// compute Wtilde scaled to the interval [0,T]
@@ -96,10 +91,6 @@ private:
 	void scaleZ(Vector& ZScaled, const Vector& Z, double sdt) const;
 	// update v
 	void updateV(Vector& v, const Vector& WtildeScaled, double h, double e, double dt) const;
-	// update Z
-	void updateZ(Vector& Z, const Vector& W1, const Vector& Wperp, double r) const;
-	// compute S
-	double updateS(const Vector& v, const Vector& Z, double dt) const;
 	// Compute bstar
 	void getGamma(Vector& Gamma, double H) const;
 	// copy real vector to complex array; all remaining entries up to nDFT are set to 0
@@ -125,30 +116,17 @@ public:
 			std::vector<uint64_t> seed);
 	~RBergomiST();
 
-	// methods
-	Result ComputePrice(); // Single threaded version
-	Result ComputeIV(); // Single threaded version
-	Result ComputePriceRT(); // Single threaded version, using Romano-Touzi
-	Result ComputeIVRT(); // Single threaded version, using Romano-Touzi
 	// Compute payoff (a la Romano-Touzi) for an array of Brownian increments
 	std::vector<Vector> ComputePayoffRT(const std::vector<Vector> & W1Arr, const std::vector<Vector> & W1perpArr);
 	// Compute one single value (corresponding to the very first entry in each parameter array)
 	double ComputePayoffRT_single(const Vector & W1, const Vector & W1perp);
 	// auxiliary methods
-	void genGaussian(Vector& X); // generate Gaussian vector X.
-	//void genGaussianMT(Vector& X); // generate Gaussian vector X. Use generator corresponding to right thread.
 	// getters and setters
 	long getM() const;
 	void setM(long m);
 	int getN() const;
 	void setN(int n);
-	int getNumThreads() const;
 	double getXi() const;
-	// test the generation of Wtilde; simulate Wtilde and W and put in file
-	void testScaleWtilde();
-	void testWtilde();
-	void testConvolve();
-	//void test_genGaussian();
 };
 
 #endif /* RBERGOMI_H_ */

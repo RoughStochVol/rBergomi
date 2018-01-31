@@ -21,7 +21,7 @@ rBergomi.pricer <- function(xi, H, eta, rho, T, K, N, M, num.threads, output.nam
   ## force non-scientific notation of numbers
   #scipen.old <- options()$scipen
   #options(scipen = 999)
-  ## Convert number to string contining first 10 digits
+  ## Convert number to string containing first 10 digits
   f10 <- function(x) formatC(x, digits=10, format="f")
   
   ## Save in files expected by console

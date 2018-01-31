@@ -15,6 +15,7 @@
 #include "rBergomiMT.h"
 #include "BlackScholes.h"
 #include "qmc.h"
+#include "fftOMP.h"
 
 using Clock = std::chrono::steady_clock;
 using std::chrono::duration_cast;
@@ -23,25 +24,25 @@ using std::chrono::milliseconds;
 TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 {
 	const double xi = 0.07;
-	const Vector H { 0.07, 0.1 };
-	Vector eta { 2.2, 2.4 };
-	Vector rho { -0.9, -0.85 };
-	Vector T { 0.5, 1.0 };
-	Vector K { 0.8, 1.0 };
-	Vector truePrice { 0.2149403, 0.08461882, 0.2157838, 0.07758564 };
+	const Vector H { 0.07};//, 0.1 };
+	Vector eta { 2.2};//, 2.4 };
+	Vector rho { -0.9};//, -0.85 };
+	Vector T { 0.5};//, 1.0 };
+	Vector K { 0.8};//, 1.0 };
+	Vector truePrice { 0.2149403};//, 0.08461882, 0.2157838, 0.07758564 };
 	long steps = 256;
 	long M = 40 * static_cast<long> (pow(static_cast<double> (steps), 2.0));
 	std::vector<uint64_t> seed { 123, 452, 567, 248, 9436, 675, 194, 6702 };
 	RBergomiST rBergomi(xi, H, eta, rho, T, K, steps, M, seed);
 	const int numThreads = 8;
 
-	const double epsilon = 0.005;
+	const double epsilon = 0.01;
 
-	/*
+/*
 	SECTION("Single-threaded pricing:") {
 		// Check that the price is within epsilon from the confidence interval around the true price
 		//Result res = rBergomi.ComputePrice();
-		Result res = rBergomi.ComputeIV();
+		Result res = rBergomi.ComputeIVRT();
 		for (int i = 0; i < 4; ++i)
 			REQUIRE(fabs(res.price[i] - truePrice[i]) < epsilon + 2*res.stat[i]);
 
@@ -72,13 +73,14 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 			REQUIRE(fabs(res.iv[i] - trueVol[i]) < epsilon + 2*res.stat[i]);
 	}
 
-
 	SECTION("Multi-threaded pricing with Romano-Touzi trick:") {
 		Result res = ComputeIVRTMT(xi, H, eta, rho, T, K, steps, M, numThreads,
 				seed);
 
-		for (int i = 0; i < 4; ++i)
+		for (int i = 0; i < 4; ++i){
+			std::cerr << "res.price[" << i << "] = " << res.price[i] << ", res.stat = " << res.stat[i] << std::endl;
 			REQUIRE(fabs(res.price[i] - truePrice[i]) < epsilon + 2*res.stat[i]);
+		}
 
 		Vector trueVol(truePrice.size());
 		trueVol[0] = IV_call(truePrice[0], 1.0, K[0], T[0]);
@@ -86,8 +88,10 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 		trueVol[2] = IV_call(truePrice[2], 1.0, K[0], T[0]);
 		trueVol[3] = IV_call(truePrice[3], 1.0, K[1], T[1]);
 
-		for (int i = 0; i < 4; ++i)
+
+		for (int i = 0; i < 4; ++i){
 			REQUIRE(fabs(res.iv[i] - trueVol[i]) < epsilon + 2*res.stat[i]);
+		}
 	}
 
 	SECTION("Multi-threaded pricing with Romano-Touzi trick based on externally provided samples:"){
@@ -155,7 +159,7 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 		for (int i = 0; i < 4; ++i)
 			REQUIRE(fabs(price[i] - truePrice[i]) < epsilon + 2*stat[i]);
 	}
-
+/*
 	SECTION("Sobol' normal numbers:"){
 		// compare against R's randtoolbox.
 		std::vector<Vector> X = normalQMC(2, 2);
@@ -218,8 +222,8 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 		// Check that variances are close to 1
 
 	}
-	*/
-
+*/
+/*
 	SECTION("Single-threaded pricing with Romano-Touzi trick and SOBOL numbers:") {
 		auto start = Clock::now();
 		Result res = ComputeIVRTST_sobol(xi, H, eta, rho, T, K, steps, M);
@@ -240,7 +244,7 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 			REQUIRE(fabs(res.iv[i] - trueVol[i]) < epsilon + 2*res.stat[i]);
 	}
 
-
+/*
 	SECTION("Multi-threaded pricing with Romano-Touzi trick and SOBOL numbers:") {
 		auto start = Clock::now();
 		Result res = ComputeIVRTMT_sobol(xi, H, eta, rho, T, K, steps, M, numThreads);
@@ -261,9 +265,65 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 			REQUIRE(fabs(res.iv[i] - trueVol[i]) < epsilon + 2*res.stat[i]);
 		}
 
-	/*
+
 	SECTION("Multithreaded SOBOL:"){
 		parallelSobol(3, 16);
 	}
+*/
+
+	SECTION("Test of re-factored payoff computation:") {
+		int M_test = 200;
+		Result res = test_updatePayoff(xi, H, eta, rho, T, K, steps, M_test, 8,
+				seed);
+
+		// Comparison with ST case based on the same "random" numbers
+		std::cout << "\nCompare with ST code (same random numbers):\n";
+		Vector W1(steps);
+		Vector W1perp(steps);
+		for(int m=0; m<M_test; ++m){
+			debugFillVector(W1, m);
+			debugFillVector(W1perp, m);
+			double payoff_ST = rBergomi.ComputePayoffRT_single(W1, W1perp);
+			//std::cout << "m = " << m << ", payoff = " << payoff_ST << '\n';
+			std::cout << m << ' ' << payoff_ST << '\n';
+		}
+		std::cout << '\n';
+
+		for (int i = 0; i < 4; ++i){
+			std::cerr << "res.price[" << i << "] = " << res.price[i] << ", res.stat = " << res.stat[i] << std::endl;
+			REQUIRE(fabs(res.price[i] - truePrice[i]) < epsilon + 2*res.stat[i]);
+		}
+
+		Vector trueVol(truePrice.size());
+		trueVol[0] = IV_call(truePrice[0], 1.0, K[0], T[0]);
+		trueVol[1] = IV_call(truePrice[1], 1.0, K[1], T[1]);
+		trueVol[2] = IV_call(truePrice[2], 1.0, K[0], T[0]);
+		trueVol[3] = IV_call(truePrice[3], 1.0, K[1], T[1]);
+
+
+		for (int i = 0; i < 4; ++i){
+			REQUIRE(fabs(res.iv[i] - trueVol[i]) < epsilon + 2*res.stat[i]);
+		}
+
+	}
+/*
+	SECTION("Test of multi-threaded convolution:"){
+		size_t N_test = 256;
+		size_t M_test = 10000;
+		// Data arrays
+		Array X = sampleArrayCos(M_test, N_test);
+		Array Y = sampleArraySin(M_test, N_test);
+		// Single-threaded:
+		Array Z_ST = convolveST(X, Y);
+		// Multi-threaded:
+		Array Z_MT = convolveMT(X, Y, 8);
+		// Compare
+		std::vector<bool> comp = compareArrays(Z_ST, Z_MT);
+
+		std::cout << "Comparison of single-threaded and multi-threaded convolution:\n"
+				<< comp << '\n';
+
+	}
 	*/
+
 }

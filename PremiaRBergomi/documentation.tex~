@@ -1,0 +1,18 @@
+\documentclass[a4paper]{article}
+
+\usepackage{personal_paper}
+
+\begin{document}
+
+\section*{Technical documentation of \verb|mc_bayer_roughbergomi|}
+\label{sec:techn-docum-verbmc_b}
+
+\verb|mc_bayer_roughbergomi| computes the price of a European call option in
+the rough Bergomi model (Bayer, Friz and Gatheral) using Monte Carlo
+simulation based on the hybrid scheme of Bennedsen, Lunde and Pakkanen.
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

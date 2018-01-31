@@ -11,19 +11,13 @@ RBergomiST::RBergomiST() {
 	N = 0;
 	M = 0;
 	nDFT = 0;
-	numThreads = 0;
-	xi = 0.0;
-	H = Vector(0);
-	eta = Vector(0);
-	rho = Vector(0);
+	par = ParamTot();
 	xC = new fftw_complex[0];
 	xHat = new fftw_complex[0];
 	yC = new fftw_complex[0];
 	yHat = new fftw_complex[0];
 	zC = new fftw_complex[0];
 	zHat = new fftw_complex[0];
-	T = Vector(0);
-	K = Vector(0);
 }
 
 // seed is optional
@@ -35,10 +29,7 @@ RBergomiST::RBergomiST(double x, Vector HIn, Vector e, Vector r, Vector t,
 	nDFT = 2 * N - 1;
 	M = MIn;
 	//numThreads = numThreadsIn;
-	xi = x;
-	H = HIn;
-	eta = e;
-	rho = r;
+	par = ParamTot(HIn, e, r, t, k, x);
 	setGen(seed);
 	dist = normDist(0.0, 1.0);
 	xC = new fftw_complex[nDFT];
@@ -53,9 +44,6 @@ RBergomiST::RBergomiST(double x, Vector HIn, Vector e, Vector r, Vector t,
 			FFTW_ESTIMATE);
 	fPlanZ = fftw_plan_dft_1d(nDFT, zHat, zC, FFTW_BACKWARD,
 			FFTW_ESTIMATE);
-	T = t;
-	K = k;
-
 }
 
 // delete allocated arrays
@@ -83,9 +71,6 @@ Result RBergomiST::ComputePrice() {
 	double S; // maybe it is better to use a vector of S's corresponding to all different maturities!!
 	// This would need a major re-organization of the code, including ParamTot...
 	// The vectors of all combinations of parameter values and prices
-	// bugfix: try to explicitly copy H before passing on
-	Vector Hcopy = H;
-	ParamTot par(Hcopy, eta, rho, T, K, xi);
 	// vectors of prices and variances
 	Vector price(par.size(), 0.0);
 	Vector var(par.size(), 0.0);
@@ -154,6 +139,47 @@ Result RBergomiST::ComputeIV() {
 	return res;
 }
 
+std::vector<Vector> RBergomiST::ComputePayoffRT(const std::vector<Vector> & W1Arr,
+		const std::vector<Vector> & W1perpArr){
+	// Check that input arrays have the right dimension
+	if((W1Arr[0].size() != N) || (W1perpArr[0].size() != N)){
+		std::cerr << "W1Arr[0].size() = " << W1Arr[0].size() << ", W1perpArr[0].size() = "
+				<< W1perpArr[0].size() << ", but N = " << N << '\n';
+		exit(17);
+	}
+	// The random vectors; the first 3 are independent, Z is a composite
+	// Note that W1, W1perp, Wperp, Z correspond to UNNORMALIZED increments of Brownian motions,
+	// i.e., are i.i.d. standard normal.
+	Vector W1(N);
+	Vector W1perp(N);
+	Vector Wtilde(N);
+	Vector WtildeScaled(N); // Wtilde scaled according to time
+	Vector v(N);
+	// Construct array for payoffs
+	std::vector<Vector> payoffArr(W1Arr.size(), Vector(par.size()));
+
+	// The big loop which needs to be parallelized in future
+	for (int m = 0; m < W1Arr.size(); ++m) {
+		// generate the fundamental Gaussians
+		W1 = W1Arr[m];
+		W1perp = W1perpArr[m];
+
+		// now iterate through all parameters
+		for (long i = 0; i < par.size(); ++i)
+			payoffArr[m][i] = updatePayoff(i, Wtilde, WtildeScaled, W1, W1perp, v);
+	}
+	return payoffArr;
+}
+
+double RBergomiST::ComputePayoffRT_single(const Vector & W1, const Vector & W1perp){
+	Vector Wtilde(N);
+	Vector WtildeScaled(N); // Wtilde scaled according to time
+	Vector v(N);
+	double payoff = updatePayoff(0, Wtilde, WtildeScaled, W1, W1perp, v);
+	return payoff;
+}
+
+
 Result RBergomiST::ComputePriceRT() {
 	// The random vectors; the first 3 are independent, Z is a composite
 	// Note that W1, W1perp, Wperp, Z correspond to UNNORMALIZED increments of Brownian motions,
@@ -165,8 +191,6 @@ Result RBergomiST::ComputePriceRT() {
 	Vector v(N);
 	Vector Z(N);
 	double Ivdt, IsvdW; // \int v_s ds, \int \sqrt{v_s} dW_s; Here, W = W1
-	Vector Hcopy = H;
-	ParamTot par(Hcopy, eta, rho, T, K, xi);
 	// vectors of prices and variances
 	Vector price(par.size(), 0.0);
 	Vector var(par.size(), 0.0);
@@ -182,29 +206,7 @@ Result RBergomiST::ComputePriceRT() {
 
 		// now iterate through all parameters
 		for (long i = 0; i < par.size(); ++i) {
-			// Note that each of the changes here forces all subsequent updates!
-			// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
-			bool update = par.HTrigger(i);
-			if (update)
-				updateWtilde(Wtilde, W1, W1perp, par.H(i));
-			// check if T has changed. If so, Wtilde and the time increment need re-scaling
-			update = update || par.TTrigger(i);
-			if (update) {
-				scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
-				dt = par.T(i) / N;
-				sdt = sqrt(dt);
-			}
-			// check if eta has changed. If so, v needs to be updated
-			update = update || par.etaTrigger(i);
-			if (update)
-				updateV(v, WtildeScaled, par.H(i), par.eta(i), dt);
-			// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
-			Ivdt = intVdt(v, dt);
-			IsvdW = intRootVdW(v, W1, sdt);
-			// now compute the payoff by inserting properly into the BS formula
-			double BS_vol = sqrt((1.0 - par.rho(i)*par.rho(i)) * Ivdt);
-			double BS_spot = exp( - 0.5 * par.rho(i)*par.rho(i) * Ivdt + par.rho(i) * IsvdW );
-			double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+			double payoff = updatePayoff(i, Wtilde, WtildeScaled, W1, W1perp, v);
 			price[i] += payoff;
 			var[i] += payoff * payoff;
 		}
@@ -288,9 +290,9 @@ void RBergomiST::scaleZ(Vector& ZScaled, const Vector& Z, double sdt) const {
 
 void RBergomiST::updateV(Vector& v, const Vector& WtildeScaled, double h,
 		double e, double dt) const {
-	v[0] = xi;
+	v[0] = par.xi();
 	for (int i = 1; i < N; ++i)
-		v[i] = xi * exp(
+		v[i] = par.xi() * exp(
 				e * WtildeScaled[i - 1] - 0.5 * e * e
 						* pow((i - 1) * dt, 2 * h));
 }
@@ -344,10 +346,6 @@ void RBergomiST::fftw_c_mult(const fftw_complex a, const fftw_complex b,
 	c[1] = a[0] * b[1] + a[1] * b[0];
 }
 
-void RBergomiST::setXi(double xi) {
-	this->xi = xi;
-}
-
 long RBergomiST::getM() const {
 	return M;
 }
@@ -369,7 +367,7 @@ int RBergomiST::getNumThreads() const {
 }
 
 double RBergomiST::getXi() const {
-	return xi;
+	return par.xi();
 }
 
 void RBergomiST::testScaleWtilde() {
@@ -382,10 +380,10 @@ void RBergomiST::testScaleWtilde() {
 	Vector Z(N);
 	Vector ZScaled(N);
 	double S;
-	double H_scalar = H[0];
-	double T_scalar = T[0];
-	double eta_scalar = eta[0];
-	double rho_scalar = rho[0];
+	double H_scalar = par.H(0);
+	double T_scalar = par.T(0);
+	double eta_scalar = par.eta(0);
+	double rho_scalar = par.rho(0);
 
 	std::cout << "H = " << H_scalar << ", T = " << T_scalar << ", eta = "
 			<< eta_scalar << ", rho = " << rho_scalar << std::endl;
@@ -493,7 +491,7 @@ double RBergomiST::intRootVdW(const Vector & v, const Vector & W1, double sdt) c
 void RBergomiST::testConvolve() {
 	// Convolve W1 and Gamma
 	Vector Gamma(N);
-	getGamma(Gamma, H[0]);
+	getGamma(Gamma, par.H(0));
 	// Choose special W1:
 	Vector W1(N);
 	for (int i = 0; i < N; ++i)
@@ -587,9 +585,34 @@ void RBergomiST::testWtilde() {
 			0.514397, -0.23803, -0.495276, -2.03592, 1.32942 };//(N);
 	Vector Wtilde(N);
 	Vector WtildeScaled(N); // Wtilde scaled according to time
-	double H_scalar = H[0];
+	double H_scalar = par.H(0);
 	updateWtilde(Wtilde, W1, W1perp, H_scalar);
 	std::cout << "W1 = " << W1 << std::endl;
 	std::cout << "W1perp = " << W1perp << std::endl;
 	std::cout << "Wtilde = " << Wtilde << std::endl;
+}
+
+double RBergomiST::updatePayoff(long i, Vector& Wtilde,
+		Vector& WtildeScaled, const Vector& W1, const Vector& W1perp, Vector& v){
+	double dt = par.T(i) / N;
+	double sdt = sqrt(dt);
+	bool update = par.HTrigger(i);
+	if (update)
+		updateWtilde(Wtilde, W1, W1perp, par.H(i));
+	// check if T has changed. If so, Wtilde and the time increment need re-scaling
+	update = update || par.TTrigger(i);
+	if (update) {
+		scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+	}
+	// check if eta has changed. If so, v needs to be updated
+	update = update || par.etaTrigger(i);
+	if (update)
+		updateV(v, WtildeScaled, par.H(i), par.eta(i), dt);
+	// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
+	double Ivdt = intVdt(v, dt);
+	double IsvdW = intRootVdW(v, W1, sdt);
+	// now compute the payoff by inserting properly into the BS formula
+	double BS_vol = sqrt((1.0 - par.rho(i)*par.rho(i)) * Ivdt);
+	double BS_spot = exp( - 0.5 * par.rho(i)*par.rho(i) * Ivdt + par.rho(i) * IsvdW );
+	return BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
 }
