@@ -64,3 +64,83 @@ rBergomi.recover <- function(output.name){
   res <- read.table(paste(path, output.name, sep=""), header=TRUE)
   return(res)
 }
+
+## Split vector x in list of n vectors of size length(x)/n. x[i] is put in 
+## z[[i %% n]]
+split.vec <- function(x, n){
+  split(x, seq_along(x) %% n)
+}
+
+## Single threaded version. Here, multiple processes are run in parallel
+## using sime " & " syntax.
+## xi, H, eta, rho ... model parameters. All assumed to be vectors.
+## T, K ... option parameters.
+## Prices are computed for each choice xi[i], H[i], eta[i], rho[i], T[i], K[i].
+## M ... number of samples to be used
+## N ... number of time steps for the Euler scheme.
+## num.jobs ... number of jobs to be used.
+## Prices and IVs are then computed by:
+## 1) Save parameters in text files in the folder path contining the rBergomi executable.
+## 2) The executable is called, computes prices and IVs and saves them in a text file
+##    with name output.name in paths.
+## 3) The results are read from the output file.
+rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
+  ## force non-scientific notation of numbers
+  #scipen.old <- options()$scipen
+  #options(scipen = 999)
+  ## Convert number to string containing first 10 digits
+  f10 <- function(x) formatC(x, digits=10, format="f")
+  
+  ## Save in files expected by console
+  path <- "/Users/bayerc/Documents/workspace/roughBergomi/ML_console_ST/Release/"
+  
+  ## Seperate all the input vectors in num.jobs different vectors
+  xi.list <- split.vec(xi, num.jobs)
+  H.list <- split.vec(H, num.jobs)
+  eta.list <- split.vec(eta, num.jobs)
+  rho.list <- split.vec(rho, num.jobs)
+  T.list <- split.vec(T, num.jobs)
+  K.list <- split.vec(K, num.jobs)
+  
+  ## Save H.list[['0']] in file ".in0.H.txt" and so on
+  for(ind in names(xi.list)){
+    write.table(f10(xi.list[[ind]]), file=paste(path, ".in", ind, "xi.txt", sep=""), 
+                col.names=FALSE, row.names=FALSE, sep="\n", quote=FALSE)
+    write.table(f10(H.list[[ind]]), file=paste(path, ".in", ind, "H.txt", sep=""), 
+                col.names=FALSE, row.names=FALSE, sep="\n", quote=FALSE)
+    write.table(f10(eta.list[[ind]]), file=paste(path, ".in", ind, "eta.txt", sep=""), 
+                col.names=FALSE, row.names=FALSE, sep="\n", quote=FALSE)
+    write.table(f10(rho.list[[ind]]), file=paste(path, ".in", ind, "rho.txt", sep=""), 
+                col.names=FALSE, row.names=FALSE, sep="\n", quote=FALSE)
+    write.table(f10(T.list[[ind]]), file=paste(path, ".in", ind, "T.txt", sep=""), 
+                col.names=FALSE, row.names=FALSE, sep="\n", quote=FALSE)
+    write.table(f10(K.list[[ind]]), file=paste(path, ".in", ind, "K.txt", sep=""), 
+                col.names=FALSE, row.names=FALSE, sep="\n", quote=FALSE)
+  }
+  ## vector of output file names and input filename modifiers
+  in.names <- as.list(outer("in", names(xi.list), function(x,y) paste(x, y, sep="")))
+  names(in.names) <- names(xi.list)
+  out.names <- as.list(outer(".out", names(xi.list), function(x,y) paste(x, y, sep="")))
+  names(out.names) <- names(xi.list)
+  
+  finf <- function(x) formatC(x, format="d")
+  
+  ## Construct each individual system command and concatenate them by paste
+  sys.command.list <- lapply(names(xi.list), function(ind) paste(paste(path, 
+                                            "ML_console_ST", sep=""), 
+                                             finf(N), finf(M), path, out.names[[ind]],
+                                             in.names[[ind]]))
+  sys.command <- paste(sys.command.list, collapse = " & ")
+  system(sys.command)
+  
+  ## restore old options
+  #options(scipen=scipen.old)
+  
+  ## read the result in again
+  res.list <- lapply(names(xi.list), function(ind) read.table(
+    paste(path, out.names[[ind]], sep=""), header=TRUE))
+  ## Concatenate the data.frames
+  res <- do.call("rbind", res.list)
+  
+  return(res)
+}

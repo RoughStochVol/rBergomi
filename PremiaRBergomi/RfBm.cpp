@@ -15,38 +15,46 @@ RfBm::RfBm() {
 	L = std::vector<Vector>(0);
 }
 
-double RfBm::A(int i, int j) {
+double RfBm::A(int i, int j) const {
 	double ret = 0.0;
-	if ((i < n) && (j < n)) {
-		if (i == j)
-			ret = 1.0;
-	} else if ((i < n) && (j >= n)) {
-		if (i <= (j - n))
-			ret = 2.0 * sqrt(2.0 * H) * pow(double(j - n) + 1.0, 0.5 + H)
-					* pow(double(n), -H) / (1.0 + 2.0 * H);
-	} else if ((i >= n) && (j < n)) {
-		if (j <= (i - n))
-			ret = 2.0 * sqrt(2.0 * H) * pow(double(i - n) + 1.0, 0.5 + H)
-					* pow(double(n), -H) / (1.0 + 2.0 * H);
-	} else {
-		if (i < j)
-			ret = pow(double(i + 1) / double(n), 2.0 * H)
-					* G(double(j + 1) / double(i + 1));
-		else if (i > j)
-			ret = pow(double(j + 1) / double(n), 2.0 * H)
-					* G(double(i + 1) / double(j + 1));
-		else if (i == j)
-			ret = pow(double(j + 1) / double(n), 2.0 * H);
-	}
+	if((i < n) && (j < n))
+		ret = cBm(i,j);
+	else if((i < n) && (j >= n))
+		ret = cMixed(i, j-n);
+	else if((i >= n) && (j < n))
+		ret = cMixed(j, i-n);
+	else if((i >= n) && (j >= n))
+		ret = cfBm(i-n, j-n);
 	return ret;
 }
 
-double RfBm::G(double x) {
+double RfBm::G(double x) const {
 	return 2.0 * H
 			* (pow(x, -gamma) / (1.0 - gamma)
 					+ gamma * pow(x, -(1.0 + gamma))
 							* gsl_sf_hyperg_2F1(1.0, 1.0 + gamma, 3.0 - gamma,
 									1.0 / x) / ((1.0 - gamma) * (2.0 - gamma)));
+}
+
+double RfBm::cBm(int i, int j) const {
+	return (i == j) ? 1.0 : 0.0;
+}
+
+double RfBm::cfBm(int i, int j) const {
+	double t = static_cast<double>(std::min(i,j) + 1) / n;
+	double s = static_cast<double>(std::max(i,j) + 1) / n;
+	return pow(t, 2*H) * G(s/t);
+}
+
+double RfBm::cMixed(int i, int j) const {
+	double ret = 0.0;
+	if(i <= j){
+		double u = static_cast<double>(i)/n;
+		double v = static_cast<double>(i+1)/n;
+		double t = static_cast<double>(j+1)/n;
+		ret = 2.0 * sqrt(2.0*H*n) * (pow(t - u, 0.5 + H) - pow(t - v, 0.5 + H)) / (1.0 + 2.0 * H);
+	}
+	return ret;
 }
 
 RfBm::RfBm(int nI, double HI, RNorm* rnormI) {
@@ -61,7 +69,7 @@ RfBm::RfBm(int nI, double HI, RNorm* rnormI) {
 		for (int j = 0; j < k; ++j)
 			temp += L[k][j] * L[k][j];
 		L[k][k] = sqrt(A(k, k) - temp);
-		for (int i = k + 1; i < n; ++i) {
+		for (int i = k + 1; i < 2*n; ++i) {
 			double temp = 0.0;
 			for (int j = 0; j < k; ++j)
 				temp += L[i][j] * L[k][j];
@@ -87,4 +95,12 @@ void RfBm::generate(Vector& W1, Vector& Wtilde) {
 
 void RfBm::operator ()(Vector& W1, Vector& Wtilde) {
 	this->generate(W1, Wtilde);
+}
+
+std::vector<Vector> RfBm::GetA() const {
+	std::vector<Vector> A_mat(2*n, Vector(2*n, 0.0));
+	for(int i=0; i<2*n; ++i)
+		for(int j=0; j<2*n; ++j)
+			A_mat[i][j] = A(i,j);
+	return A_mat;
 }

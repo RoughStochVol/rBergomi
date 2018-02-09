@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <numeric>
+#include <algorithm>
 #include <fftw3.h>
 #include "RNorm.h"
 #include "RfBm.h"

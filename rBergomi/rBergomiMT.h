@@ -18,6 +18,7 @@
 #include <fenv.h>
 #include "RBergomi.h"
 #include "qmc.h"
+#include "Convolve.h"
 
 // Define a struct for holding the complex arrays used by fftw3.
 // We actually use pointers to pointers since we implement one array
@@ -50,8 +51,11 @@ struct RNG{
 };
 
 // compute Wtilde as in terms of W1, W1perp, H by Pakkanenen et al.
-void updateWtilde(Vector& Wtilde, const Vector& W1, const Vector& W1perp, double H,
-		fftData& fft, int nDFT);
+void updateWtilde(Vector & Wtilde, const Vector & W1, const Vector & W1perp,
+		double H, std::map<double, Vector> GammaMap, fftData& fft,
+		int nDFT);
+void updateWtildeConv(Vector & Wtilde, const Vector & W1, const Vector & W1perp,
+		double H, std::map<double, Vector> GammaMap, Convolve* conv);
 
 // compute Wtilde scaled to the interval [0,T]
 void scaleWtilde(Vector& WtildeScaled, const Vector& Wtilde, double T, double H);

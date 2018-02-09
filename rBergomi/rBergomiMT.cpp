@@ -111,6 +111,21 @@ void updateWtilde(Vector & Wtilde, const Vector & W1, const Vector & W1perp,
 			sqrt(2.0 * H) * pow(1.0 / N, H), W1hat);
 }
 
+// Using new Convolve class
+void updateWtildeConv(Vector & Wtilde, const Vector & W1, const Vector & W1perp,
+		double H, std::map<double, Vector> GammaMap, Convolve* conv){
+	int N = Wtilde.size();
+	double s2H = sqrt(2.0 * H);
+	double rhoH = s2H / (H + 0.5);
+	Vector W1hat = linearComb(rhoH / s2H, W1, sqrt(1.0 - rhoH * rhoH) / s2H, W1perp);
+	Vector Y2(N); // see R code
+	// Convolve W1 and Gamma and save to Y2
+	conv->run(W1, GammaMap[H], Y2);
+	// Wtilde = (Y2 + W1hat) * sqrt(2*H) * dt^H ??
+	Wtilde = linearComb(sqrt(2.0 * H) * pow(1.0 / N, H), Y2,
+			sqrt(2.0 * H) * pow(1.0 / N, H), W1hat);
+}
+
 double updateS(const Vector & v, const Vector & ZScaled, double dt) {
 	double X = 0.0;
 	for (size_t i = 0; i < v.size(); ++i)
@@ -493,35 +508,6 @@ std::vector<Vector> ComputePayoffRTsamples(double xi, Vector H, Vector eta,
 			W1perp = W1perpArr[m];
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
-				/*
-				// Note that each of the changes here forces all subsequent updates!
-				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
-				bool update = par.HTrigger(i);
-				if (update)
-					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
-							omp_get_thread_num(), nDFT);
-				// check if T has changed. If so, Wtilde and the time increment need re-scaling
-				update = update || par.TTrigger(i);
-				if (update) {
-					scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
-					dt = par.T(i) / N;
-					sdt = sqrt(dt);
-				}
-				// check if eta has changed. If so, v needs to be updated
-				update = update || par.etaTrigger(i);
-				if (update)
-					updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
-				// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
-				Ivdt = intVdt(v, dt);
-				IsvdW = intRootVdW(v, W1, sdt);
-
-				// now compute the payoff by inserting properly into the BS formula
-				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
-				double BS_spot = exp(
-						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
-								* IsvdW);
-				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
-				*/
 				double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
 										GammaMap, fft, nDFT, N, omp_get_thread_num());
 
@@ -688,35 +674,6 @@ Result ComputePriceRTMT_sobol(double xi, Vector H, Vector eta, Vector rho, Vecto
 
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
-				/*
-				// Note that each of the changes here forces all subsequent updates!
-				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
-				bool update = par.HTrigger(i);
-				if (update)
-					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
-							omp_get_thread_num(), nDFT);
-				// check if T has changed. If so, Wtilde and the time increment need re-scaling
-				update = update || par.TTrigger(i);
-				if (update) {
-					scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
-					dt = par.T(i) / N;
-					sdt = sqrt(dt);
-				}
-				// check if eta has changed. If so, v needs to be updated
-				update = update || par.etaTrigger(i);
-				if (update)
-					updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
-				// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
-				Ivdt = intVdt(v, dt);
-				IsvdW = intRootVdW(v, W1, sdt);
-
-				// now compute the payoff by inserting properly into the BS formula
-				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
-				double BS_spot = exp(
-						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
-								* IsvdW);
-				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
-				*/
 				double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
 										GammaMap, fft, nDFT, N, omp_get_thread_num());
 
@@ -811,35 +768,6 @@ Result ComputePriceRTST_sobol(double xi, Vector H, Vector eta, Vector rho, Vecto
 
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
-				/*
-				// Note that each of the changes here forces all subsequent updates!
-				// check if H has changed. If so, Wtilde needs to be updated (and, hence, everything else)
-				bool update = par.HTrigger(i);
-				if (update)
-					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
-							0, nDFT);
-				// check if T has changed. If so, Wtilde and the time increment need re-scaling
-				update = update || par.TTrigger(i);
-				if (update) {
-					scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
-					dt = par.T(i) / N;
-					sdt = sqrt(dt);
-				}
-				// check if eta has changed. If so, v needs to be updated
-				update = update || par.etaTrigger(i);
-				if (update)
-					updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
-				// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
-				Ivdt = intVdt(v, dt);
-				IsvdW = intRootVdW(v, W1, sdt);
-
-				// now compute the payoff by inserting properly into the BS formula
-				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
-				double BS_spot = exp(
-						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
-								* IsvdW);
-				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
-				*/
 				double payoff =  updatePayoff(par, xi, i, Wtilde, WtildeScaled, W1, W1perp, v,
 						GammaMap, fft, nDFT, N, omp_get_thread_num());
 
@@ -967,24 +895,6 @@ ResultUnordered ComputePriceRTMTunstructured(double xi, Vector H, Vector eta, Ve
 
 			// now iterate through all parameters
 			for (long i = 0; i < par.size(); ++i) {
-				/*
-				// In the unordered case, we assume that all parameters change continuously.
-				updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft,
-							omp_get_thread_num(), nDFT);
-				scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
-				dt = par.T(i) / N;
-				sdt = sqrt(dt);
-				updateV(v, WtildeScaled, xi, par.H(i), par.eta(i), dt);
-				Ivdt = intVdt(v, dt);
-				IsvdW = intRootVdW(v, W1, sdt);
-
-				// now compute the payoff by inserting properly into the BS formula
-				double BS_vol = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
-				double BS_spot = exp(
-						-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i)
-								* IsvdW);
-				double payoff = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
-				 */
 				double payoff = updatePayoffUnordered(par, xi, i, Wtilde, WtildeScaled, W1,
 						W1perp, v, GammaMap, fft, nDFT, N, omp_get_thread_num());
 
@@ -1131,6 +1041,16 @@ Result test_updatePayoff(double xi, Vector H, Vector eta, Vector rho, Vector T,
 	int nDFT = 2 * N - 1;
 	fftData fft(nDFT, numThreads);
 
+	// The data for the alternative FFT procedure
+	std::vector<ConvolveFFTW> convFFTW(numThreads);
+	std::vector<ConvolveGSL> convGSL(numThreads);
+	std::vector<Convolve*>  conv(numThreads);
+	for(int i =0; i<numThreads; ++i){
+		convFFTW[i] = ConvolveFFTW(N);
+		convGSL[i] = ConvolveGSL(N);
+		conv[i] = &convGSL[i];
+	}
+
 	// gather the RNG
 	RNG rng(numThreads, seed);
 
@@ -1174,7 +1094,8 @@ Result test_updatePayoff(double xi, Vector H, Vector eta, Vector rho, Vector T,
 				}
 */
 				if (update)
-					updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, nDFT);
+					//updateWtilde(Wtilde, W1, W1perp, par.H(i), GammaMap, fft, nDFT);
+					updateWtildeConv(Wtilde, W1, W1perp, par.H(i), GammaMap, conv[omp_get_thread_num()]);
 
 /*
 				#pragma omp critical
@@ -1206,24 +1127,26 @@ Result test_updatePayoff(double xi, Vector H, Vector eta, Vector rho, Vector T,
 				double payoff_old = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
 
 
-				//double payoff_new =  updatePayoff(par, xi, i, Wtilde_new, WtildeScaled_new, W1, W1perp, v_new,
-													//	GammaMap, fft, nDFT, N, omp_get_thread_num());
+				double payoff_new =  updatePayoff(par, xi, i, Wtilde_new, WtildeScaled_new, W1, W1perp, v_new,
+														GammaMap, fft, nDFT, N, omp_get_thread_num());
 
 				// Print old and new payoff
 				# pragma omp critical
 				{
-					//if(fabs(payoff_old - payoff_new) > 0.00000001)
+					if(fabs(payoff_old - payoff_new) > 0.00000001)
 					{
-						/*if(fabs(payoff_old - payoff_new) > 0.00000001){
+						/*
+						if(fabs(payoff_old - payoff_new) > 0.00000001){
 							std::cout << "\033[1;31mDifference detected!\033[0m\n";
 							std::cout << "Wtilde - Wtilde_new = " << linearComb(1.0, Wtilde, -1.0, Wtilde_new) << "\n";
 						}
 						else{
 							std::cout << "\033[1;32mNo difference detected!\033[0m\n";
-						}*/
+						}
+						*/
 						//std::cout << "m = " << m << ", threadID = " << omp_get_thread_num() << ", i = " << i << "\n";
 						//std::cout << "Payoff (old) = " << payoff_old << ", payoff (new) = " << payoff_new << "\n";
-						std::cout << m << " " << payoff_old << '\n';
+						std::cout << m << " " << payoff_old << " " << payoff_new << '\n';
 						/*std::cout << "For old code: Ivdt = " << Ivdt << ", IsvdW = " << IsvdW << "\nBS_vol = " << BS_vol
 								<< ", BS_spot = " << BS_spot
 								<< "\nv = " << v
@@ -1256,6 +1179,8 @@ Result test_updatePayoff(double xi, Vector H, Vector eta, Vector rho, Vector T,
 					// Out of 200 samples, the multi-threaded code was wrong 41 times. Hence, the multi-threaded code is not trustworthy.
 					// Test for payoff_old: Out of 200 samples, the old version of the multi-threaded code was wrong 45 times.
 					// Replace "threadID" everywhere by calling omp_get_thread_num()
+					// The problem seems to persist even when using the GSL-FFT instead of FFTW. Maybe it is more complicated than
+					// expected?
 				}
 
 				price_private[i] += payoff_old;

@@ -16,6 +16,7 @@
 #include "BlackScholes.h"
 #include "qmc.h"
 #include "fftOMP.h"
+#include "Convolve.h"
 
 using Clock = std::chrono::steady_clock;
 using std::chrono::duration_cast;
@@ -271,6 +272,7 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 	}
 */
 
+
 	SECTION("Test of re-factored payoff computation:") {
 		int M_test = 200;
 		Result res = test_updatePayoff(xi, H, eta, rho, T, K, steps, M_test, 8,
@@ -306,6 +308,7 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 		}
 
 	}
+
 /*
 	SECTION("Test of multi-threaded convolution:"){
 		size_t N_test = 256;
@@ -326,4 +329,63 @@ TEST_CASE( "Test the single and multi-threaded pricing routines", "[pricing]" )
 	}
 	*/
 
+	/*
+	SECTION("Test of convolution class:"){
+		int N = 4;
+		int nDFT = 2*N-1;
+		Vector x {1.0, 2.4, 3.9, 4.8};
+		Vector y {9.0, 5.4, 2.9, 7.8};
+		Vector z1(N);
+		Vector z2(N);
+		// Compute convolution using new class
+		ConvolveFFTW convFFTW(N);
+		Convolve * conv = &convFFTW;
+		conv->run(x, y, z1);
+		// now use the old style code.
+		fftData fft(nDFT, 1);
+		copyToComplex(nDFT, x, fft.xC[0]);
+		copyToComplex(nDFT, y, fft.yC[0]);
+		// DFT both
+		fftw_execute(fft.fPlanX[0]); // DFT saved in xHat[0]
+		fftw_execute(fft.fPlanY[0]); // DFT saved in yHat[0]
+		// multiply xHat and yHat and save in zHat
+		complexMult(nDFT, fft.xHat[0], fft.yHat[0],
+				fft.zHat[0]);
+		// inverse DFT zHat
+		fftw_execute(fft.fPlanZ[0]);
+		// read out the real part, re-scale by 1/nDFT
+		copyToReal(z2, fft.zC[0]);
+		scaleVector(z2, 1.0 / nDFT);
+
+		std::cout << "x = " << x << ", y = " << y <<
+				",\nz1 = " << z1 << ", z2 = " << z2 << ".\n";
+
+		// Now test multi-threaded, as well. We keep z1 as the true result.
+		int numThread = 8;
+		int M = 1000; // convolve 1000 copies of x and y
+		std::vector<Vector> X(M, x);
+		std::vector<Vector> Y(M, y);
+		std::vector<Vector> Z(M, x);
+		std::vector<ConvolveFFTW> CONVFFTW(numThread);
+		std::vector<Convolve*>  CONV(numThread);
+		for(int i =0; i<numThread; ++i){
+			CONVFFTW[i] = ConvolveFFTW(N);
+			CONV[i] = &CONVFFTW[i];
+		}
+
+		// Enforce that OMP use numThreads threads
+		omp_set_dynamic(0);     // Explicitly disable dynamic teams
+		omp_set_num_threads(numThread);
+
+#pragma omp for
+		for(int m=0; m<M; ++m){
+			int id = omp_get_thread_num();
+			CONV[id]->run(X[m], Y[m], Z[m]);
+		}
+		std::vector<bool> equalP(M);
+		for(int m=0; m<M; ++m)
+			equalP[m] = (Z[m] == z1);
+		std::cout << "equalP = " << equalP << ".\n";
+	}
+*/
 }

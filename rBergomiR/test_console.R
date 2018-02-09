@@ -30,3 +30,5 @@ res2 <- rBergomi.pricer(xi, H, eta, rho, T, K, N, M, num.threads, output.name)
 save(res, file="test.RData")
 
 ## Computes 10000 prices with 500 timesteps and 500000 samples in 1.4 hours with 8 cores.
+
+
