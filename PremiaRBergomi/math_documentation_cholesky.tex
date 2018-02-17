@@ -1,0 +1,84 @@
+\documentclass[a4paper]{article}
+
+\usepackage{amsmath,amsfonts}
+
+\newcommand{\R}{\mathbb{R}}
+
+\renewcommand{\tilde}[1]{\widetilde{#1}}
+
+\begin{document}
+
+\section*{Documentation of \texttt{mc\_bayer\_roughbergomi\_cholesky}}
+\label{sec:techn-docum-verbmc_b}
+
+Compute the European call option price of an asset in the rough Bergomi model.
+
+\subsection*{Usage}
+\label{sec:usage}
+
+The function takes $9$ parameters, which are explained in
+Table~\ref{tab:par}. Note that the risk free interest rate is set to $r = 0$ here.
+
+\begin{table}[!htp]
+  \centering
+  \begin{tabular}{c|l|c}
+    Parameter & Interpretation & Range \\
+    \hline
+    $S_0$ & Spot price of underlying & $\R_{>0}$\\
+    $\eta$ & Parameter of the stochastic volatility, ``vol-of-vol'' & $\R_{>0}$\\
+    $H$ & Hurst index of the fractional Brownian motion & $]0,1/2[$\\
+    $\rho$ & Correlation between Bm driving spot and volatility & $]-1,1[$\\
+    $\xi$ & Spot variance & $\R_{>0}$\\
+    $K$ & Strike price of the option & $\R_{>0}$\\
+    $T$ & Maturity of the option (years) & $\R_{>0}$\\
+    $M$ & \# of samples for Monte Carlo simultion & $\mathbb{N}$\\
+    $N$ & \# of grid points for the time discretization & $\mathbb{N}$
+  \end{tabular}
+  \caption{Parameters of \texttt{mc\_bayer\_roughbergomi\_cholesky}}
+  \label{tab:par}
+\end{table}
+
+\subsection*{Background}
+\label{sec:background}
+
+\texttt{mc\_bayer\_roughbergomi\_cholesky} computes the price of a European call option in
+the rough Bergomi model by Bayer, Friz and Gatheral \cite{BFG} using Monte Carlo
+simulation based on Cholesky factorization of the underlying covariance matrix.
+
+The rough Bergomi model is described by the dynamics
+\begin{gather*}
+  dS_t = \sqrt{v_t} S_t dZ_t,\\
+  v_t = \xi_0(t) \exp\left( \eta \tilde{W}_t - \frac{1}{2} \eta^2 t^{2H} \right),
+\end{gather*}
+where $W, Z$ denote two \emph{correlated} standard Brownian motions--with
+correlation $\rho$--and $\eta > 0$ is interpreted as a volatility of volatility parameter. More
+interestingly, for a Hurst parameter $0 < H < 1$ we have
+\begin{equation*}
+  \tilde{W}_t = \int_0^t K(t,s) dW_s, \quad K(t,s) = \sqrt{2H} (t-s)^{H - 1/2}.
+\end{equation*}
+This defines a variant of the fractional Brownian motion, sometimes called
+``Riemann-Liouville fractional Brownian motion'', which is not the standard
+fBm. Finally, $\xi_0$ is the forward variance curve, which is assumed to be
+constant in this implementation.
+
+Notice that samples from $\tilde{W}$ cannot be obtained by standard algorithms
+for fractional Brownian motion, as $\tilde{W}$ does not have stationary increments.
+However, $\tilde{W}$ is a Gaussian process, whose covariance can be computed
+explicitly in terms of special functions and is given in \cite{B+}. Samples
+along a grid are then provided by the Cholesky method. Note that those samples
+are exact. Note that this scheme is computationally expensive.
+
+\begin{thebibliography}{9}
+\bibitem[BFG]{BFG} Ch.~Bayer, P.~Friz, J.~Gatheral: Pricing under rough
+  volatility, \emph{Quantitative Finance} 16(6), 887-904, 2016.
+\bibitem[B+]{B+} Ch.~Bayer, P.~K.~Friz, A.~Gulisashvili, B.~Horvath,
+  B.~Stemper: \emph{Short-time near-the-money skew in rough fractional
+    volatility models}, arXiv preprint arXiv:1703.05132, 2017.
+\end{thebibliography}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
