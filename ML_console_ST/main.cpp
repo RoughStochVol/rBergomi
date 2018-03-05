@@ -29,8 +29,8 @@
 #include <vector>
 #include <random>
 #include "RBergomi.h"
-#include "BlackScholes.h"
-#include "aux.h"
+//#include "BlackScholes.h"
+//#include "aux.h"
 
 typedef std::vector<double> Vector;
 
@@ -154,64 +154,3 @@ int main(int argc, char* argv[]) {
 
 	return 0;
 }
-
-//int main() {
-//	const double xi = 0.07;
-//	const Vector H { 0.07, 0.1 };
-//	Vector eta { 2.2, 2.4 };
-//	Vector rho { -0.9, -0.85 };
-//	Vector T { 0.5, 1.0 };
-//	Vector K { 0.8, 1.0 };
-//	Vector truePrice { 0.2149403, 0.08461882, 0.2157838, 0.07758564 };
-//	long steps = 256;
-//	long M = 10 * static_cast<long> (pow(static_cast<double> (steps), 2.0));
-//	std::vector<uint64_t> seed { 123, 452, 567, 248, 9436, 675, 194, 6702 };
-//	RBergomiST rBergomi(xi, H, eta, rho, T, K, steps, M, seed);
-//	const int numThreads = 8; // numThreads = 1 exactly gives the same results as single-threaded version!
-//
-//	const double epsilon = 0.005;
-//
-//	// generate the normals
-//	std::vector<Vector> W1Arr(M, Vector(steps));
-//	std::vector<Vector> W1perpArr(M, Vector(steps));
-//	RNG rng(1, seed);
-//	for(long i = 0; i<M; ++i){
-//		genGaussianMT(W1Arr[i], rng, 0);
-//		genGaussianMT(W1perpArr[i], rng, 0);
-//	}
-//
-//	//std::cout << "First entries of W1 and W1perp:\n"
-//	//		<< W1Arr[0] << "\n" << W1perpArr[0] << "\n";
-//
-//	if(numThreads < 1)
-//		std::cout << "Single-threaded version.\n";
-//	else
-//		std::cout << "Multi-threaded version. Number of threads = " << numThreads << "\n";
-//
-//	// now call the function to compute all the samples.
-//	std::vector<Vector> payoffArr;
-//	if(numThreads < 1)
-//		payoffArr = ComputePayoffRTsamples_ST(xi, H, eta, rho, T, K, W1Arr, W1perpArr);
-//	else
-//		payoffArr = ComputePayoffRTsamples(xi, H, eta, rho, T, K, numThreads, W1Arr, W1perpArr);
-//
-//	// now compute the prices and statistical error estimates
-//	size_t L = payoffArr[0].size();
-//	//std::cout << "Dimensions of payoffArr = (" << payoffArr.size() << ", " << payoffArr[0].size() << ")\n";
-//	//std::cout << "First entry of payoffArr = (" << payoffArr[0][0]
-//	         // << ", " << payoffArr[0][1] << ", " << payoffArr[0][2]<< ", " << payoffArr[0][3]
-//	//          << ")\n";
-//	Vector price(L, 0.0);
-//	Vector stat(L, 0.0);
-//	//std::cout << "Length of price = " << price.size() << ", first entry = " << price[0] << "\n";
-//	for(size_t j = 0; j<L; ++j){
-//		for(long i=0; i<M; ++i){
-//			price[j] += payoffArr[i][j];
-//			stat[j] += payoffArr[i][j] * payoffArr[i][j];
-//		}
-//		price[j] = price[j] / static_cast<double>(M);
-//		stat[j] = sqrt(stat[j] / static_cast<double>(M) - price[j]*price[j]) / sqrt(static_cast<double>(M));
-//	}
-//	for (int i = 0; i < price.size(); ++i)
-//		std::cout << fabs(price[i] - truePrice[i]) << " < " << epsilon + 2*stat[i] << std::endl;
-//}

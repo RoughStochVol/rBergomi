@@ -84,6 +84,11 @@ split.vec <- function(x, n){
 ## 2) The executable is called, computes prices and IVs and saves them in a text file
 ##    with name output.name in paths.
 ## 3) The results are read from the output file.
+##
+## BUG!
+## There seems to be a bug when the number of jobs is higher than previously, i.e.,
+## when one of the output files is generated for the first time.
+## The bug happens in line 145.
 rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
   ## force non-scientific notation of numbers
   #scipen.old <- options()$scipen
@@ -92,7 +97,7 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
   f10 <- function(x) formatC(x, digits=10, format="f")
   
   ## Save in files expected by console
-  path <- "/Users/bayerc/Documents/workspace/roughBergomi/ML_console_ST/Release/"
+  path <- "~/workspace/roughBergomi/ML_console_ST/"
   
   ## Seperate all the input vectors in num.jobs different vectors
   xi.list <- split.vec(xi, num.jobs)
@@ -135,7 +140,7 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
   
   ## restore old options
   #options(scipen=scipen.old)
-  
+  #browser()
   ## read the result in again
   res.list <- lapply(names(xi.list), function(ind) read.table(
     paste(path, out.names[[ind]], sep=""), header=TRUE))
