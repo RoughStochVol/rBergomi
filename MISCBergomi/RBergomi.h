@@ -1,26 +1,5 @@
 /*
- * RBergomiST.h
- *
- * Class for computing option prices in the R-Bergomi model in a single-threaded way.
- *
- * Input:
- * -) S_0 and xi_0 are known constants (xi_0 is assumed to be constant!), r is assumed to be 0 (forward prices).
- *    Actually, S_0 = 1. (K in terms of moneyness).
- * -) Values (T,K) of maturities and strikes for which prices are to be computed.
- *    These are assumed to be ordered according to T.
- * -) Parameter values (H, eta, rho), for which prices are to be computed.
- *    These are assumed to be ordered according to H, then eta, then rho.
- * -) Number of time steps N and number of samples M. (Note that the same samples of the underlying Gaussian
- *    processes are used for all different (T,K) and all different (H, eta, rho).)
- * -) Seeds of the random number generators, to be determined.
- *
- * Output:
- * A vector of call prices for all combinations of (H, eta, rho) and (T,K).
- * We implement both the standard Monte Carlo algorithm and the one based on the Romano-Touzi argument.
- *
- * In a class we cannot really parallelize using openmp! Do it now in the class for a single-thread case, and then
- * define a single standing function for the general case.
- *
+
  *  Created on: Nov 16, 2016
  *      Author: bayerc
  */

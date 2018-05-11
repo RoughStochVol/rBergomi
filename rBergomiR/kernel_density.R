@@ -41,3 +41,9 @@ plot(fhat2)
 ## Sample from the estimated density
 y <- rkde(n = 1000, fhat = fhat1)
 plot(y[,1], y[,2]) ## Scatterplot
+
+## Check the actual data from Ben. Date is 20180215
+spx.data <- read.csv(file = 
+    "/Users/bayerc/Documents/ben/deep-learning-finance/spx_20180215.csv", 
+    header = TRUE)
+## Calls and Puts contains both maturity and strike, which need to be extracted!

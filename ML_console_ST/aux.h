@@ -11,6 +11,7 @@
 #include<cstdlib>
 #include<cmath>
 #include<algorithm>
+#include<numeric>
 #include<fftw3.h>
 #include"ParamTot.h"
 
@@ -200,4 +201,20 @@ inline T minVec(const std::vector<T>& x){
 inline void debugFillVector(Vector& x, int m){
 	for(size_t i=0; i<x.size(); ++i)
 		x[i] = cos(double(i)*double(m));
+}
+
+// Compute covariance between two samples
+inline double covariance(const Vector& x, const Vector& y){
+	if(x.size() != y.size()){
+		std::cerr << "Computing covariances for samples of different size.\n";
+		exit(34);
+	}
+	double xMean = std::accumulate(x.begin(), x.end(), 0.0) / x.size();
+	double yMean = std::accumulate(y.begin(), y.end(), 0.0) / y.size();
+	Vector xDiff(x.size()); // x - xMean
+	Vector yDiff(y.size());
+	std::transform(x.begin(), x.end(), xDiff.begin(), [xMean](double x) { return x - xMean; });
+	std::transform(y.begin(), y.end(), yDiff.begin(), [yMean](double x) { return x - yMean; });
+	double covariance = std::inner_product(xDiff.begin(), xDiff.end(), yDiff.begin(), 0.0) / (x.size() - 1);
+	return covariance;
 }

@@ -79,6 +79,7 @@ split.vec <- function(x, n){
 ## M ... number of samples to be used
 ## N ... number of time steps for the Euler scheme.
 ## num.jobs ... number of jobs to be used.
+## var.red ... boolean: should variance reduction be used?
 ## Prices and IVs are then computed by:
 ## 1) Save parameters in text files in the folder path contining the rBergomi executable.
 ## 2) The executable is called, computes prices and IVs and saves them in a text file
@@ -89,7 +90,7 @@ split.vec <- function(x, n){
 ## There seems to be a bug when the number of jobs is higher than previously, i.e.,
 ## when one of the output files is generated for the first time.
 ## The bug happens in line 145.
-rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
+rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs, var.red = FALSE){
   ## force non-scientific notation of numbers
   #scipen.old <- options()$scipen
   #options(scipen = 999)
@@ -97,7 +98,10 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
   f10 <- function(x) formatC(x, digits=10, format="f")
   
   ## Save in files expected by console
-  path <- "~/workspace/roughBergomi/ML_console_ST/"
+  if(Sys.info()[1] == "Darwin")
+    path <- "~/Documents/workspace/roughBergomi/ML_console_ST/"
+  else
+    path <- "~/workspace/roughBergomi/ML_console_ST/"
   
   ## Seperate all the input vectors in num.jobs different vectors
   xi.list <- split.vec(xi, num.jobs)
@@ -122,6 +126,13 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
     write.table(f10(K.list[[ind]]), file=paste(path, ".in", ind, "K.txt", sep=""), 
                 col.names=FALSE, row.names=FALSE, sep="\n", quote=FALSE)
   }
+  
+  ## method of variance reduction
+  if(var.red)
+    method <- "t"
+  else
+    method <- "s"
+  
   ## vector of output file names and input filename modifiers
   in.names <- as.list(outer("in", names(xi.list), function(x,y) paste(x, y, sep="")))
   names(in.names) <- names(xi.list)
@@ -132,9 +143,12 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs){
   
   ## Construct each individual system command and concatenate them by paste
   sys.command.list <- lapply(names(xi.list), function(ind) paste(paste(path, 
-                                            "ML_console_ST", sep=""), 
+                                            "Release/ML_console_ST", sep=""), 
                                              finf(N), finf(M), path, out.names[[ind]],
-                                             in.names[[ind]]))
+                                             in.names[[ind]], method))
+  ## bugfix
+  print(sys.command.list)
+  
   sys.command <- paste(sys.command.list, collapse = " & ")
   system(sys.command)
   

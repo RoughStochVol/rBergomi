@@ -62,6 +62,7 @@ private:
 	int N;
 	int nDFT; // length of arrays for which DFT needs to be computed; = 2*N - 1 ???
 	long M;
+	long Mcontrol; // # of samples used to estimate control variate; set to 100
 	MTGenerator gen;
 	normDist dist;
 	fftw_complex *xC; // one complex array (of size 2*N-1???)
@@ -104,6 +105,15 @@ private:
 	// Compute one payoff in Romano-Touzi sense
 	double updatePayoff(long i, Vector& Wtilde, Vector& WtildeScaled, const Vector& W1,
 			const Vector& W1perp, Vector& v);
+	// Compute \int_0^T v_s ds and \int_0^T \sqrt{v_s} dW_s
+	Vector computeIvdtIsvdW(long i, Vector& Wtilde, Vector& WtildeScaled,
+			const Vector& W1, const Vector& W1perp, Vector& v);
+	// Estimate the choices alpha and Q in the control variate of "turbo-charging"
+	std::vector<Vector> estimateControlVariate(Vector& Wtilde, Vector& WtildeScaled, Vector& W1, Vector& W1perp,
+			Vector& v);
+	// Compute payoff including control variate
+	double updatePayoffControlVariate(long i, Vector& Wtilde, Vector& WtildeScaled, const Vector& W1,
+				const Vector& W1perp, Vector& v, double alpha, double Q);
 public:
 	//*structors
 	RBergomi();
@@ -116,7 +126,9 @@ public:
 	Result ComputePrice(); // Single threaded version
 	Result ComputeIV(); // Single threaded version
 	Result ComputePriceRT(); // Single threaded version, using Romano-Touzi
+	Result ComputePriceRTVarRed(); // Single threaded version, using Romano-Touzi and variance reduction.
 	Result ComputeIVRT(); // Single threaded version, using Romano-Touzi
+	Result ComputeIVRTVarRed();
 	// Compute payoff (a la Romano-Touzi) for an array of Brownian increments
 	std::vector<Vector> ComputePayoffRT(const std::vector<Vector> & W1Arr, const std::vector<Vector> & W1perpArr);
 	// Compute one single value (corresponding to the very first entry in each parameter array)

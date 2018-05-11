@@ -10,6 +10,7 @@
 RBergomi::RBergomi() {
 	N = 0;
 	M = 0;
+	Mcontrol = 0;
 	nDFT = 0;
 	par = ParamTot();
 	xC = new fftw_complex[0];
@@ -28,6 +29,7 @@ RBergomi::RBergomi(Vector x, Vector HIn, Vector e, Vector r, Vector t, Vector k,
 	N = NIn;
 	nDFT = 2 * N - 1;
 	M = MIn;
+	Mcontrol = 100;
 	//numThreads = numThreadsIn;
 	par = ParamTot(HIn, e, r, t, k, x);
 	setGen(seed);
@@ -210,8 +212,80 @@ Result RBergomi::ComputePriceRT() {
 	return res;
 }
 
+Result RBergomi::ComputePriceRTVarRed() {
+	// The random vectors; the first 3 are independent, Z is a composite
+	// Note that W1, W1perp, Wperp, Z correspond to UNNORMALIZED increments of Brownian motions,
+	// i.e., are i.i.d. standard normal.
+	Vector W1(N);
+	Vector W1perp(N);
+	Vector Wtilde(N);
+	Vector WtildeScaled(N); // Wtilde scaled according to time
+	Vector v(N);
+	Vector Z(N);
+	// vectors of prices and variances
+	Vector price(par.size(), 0.0);
+	Vector var(par.size(), 0.0);
+
+	// estimate the parameters alpha and Q for the control variates
+	std::vector<Vector> contVar = estimateControlVariate(Wtilde, WtildeScaled, W1, W1perp, v);
+	Vector alpha = contVar[0];
+	Vector Q = contVar[1];
+
+	// antithetic variates require us to save a vector of all results for one realization
+	// for the purpose of computing the correct variance
+	Vector payoffVec(par.size());
+
+	// The big loop which needs to be parallelized in future
+	for (int m = 0; m < M; ++m) {
+		// generate the fundamental Gaussians
+		genGaussian(W1);
+		genGaussian(W1perp); // Wperp is  not needed!
+
+		// now iterate through all parameters
+		for (long i = 0; i < par.size(); ++i)
+			payoffVec[i] = 0.5 * updatePayoffControlVariate(i, Wtilde, WtildeScaled, W1, W1perp,
+					v, alpha[i], Q[i]);
+		// include antithetic
+		scaleVector(W1, -1.0);
+		scaleVector(W1perp, -1.0);
+		// now iterate through all parameters
+		for (long i = 0; i < par.size(); ++i)
+			payoffVec[i] += 0.5 * updatePayoffControlVariate(i, Wtilde, WtildeScaled, W1, W1perp,
+					v, alpha[i], Q[i]);
+
+		for(long i = 0; i < par.size(); ++i){
+			price[i] += payoffVec[i];
+			var[i] += payoffVec[i] * payoffVec[i];
+		}
+	}
+
+	// compute mean and variance
+	scaleVector(price, 1.0 / double(M)); // biased because of control variate
+	scaleVector(var, 1.0 / double(M)); // = E[X^2]
+	var = linearComb(1.0, var, -1.0, squareVector(price)); // = empirical var of price
+	Vector stat = rootVector(var);
+	scaleVector(stat, 1.0 / sqrt(double(M)));
+	Vector iv(par.size());
+	// adjust price by subtracting the expectation of the control variate
+	for(size_t i=0; i<par.size(); ++i)
+		price[i] -= alpha[i] * BS_call_price(1.0, par.K(i), 1.0, par.rho(i) * par.rho(i) * Q[i]);
+
+	Result res { price, iv, stat, par, N, M, 0.0 };
+
+	return res;
+}
+
 Result RBergomi::ComputeIVRT() {
 	Result res = ComputePriceRT();
+	// Compute the implied vol for each price saved in res
+	for (long i = 0; i < res.par.size(); ++i) {
+		res.iv[i] = IV_call(res.price[i], 1.0, res.par.K(i), res.par.T(i));
+	}
+	return res;
+}
+
+Result RBergomi::ComputeIVRTVarRed() {
+	Result res = ComputePriceRTVarRed();
 	// Compute the implied vol for each price saved in res
 	for (long i = 0; i < res.par.size(); ++i) {
 		res.iv[i] = IV_call(res.price[i], 1.0, res.par.K(i), res.par.T(i));
@@ -373,4 +447,74 @@ double RBergomi::updatePayoff(long i, Vector& Wtilde, Vector& WtildeScaled,
 	double BS_spot = exp(
 			-0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i) * IsvdW);
 	return BS_call_price(BS_spot, par.K(i), 1.0, BS_vol);
+}
+
+Vector RBergomi::computeIvdtIsvdW(long i, Vector& Wtilde, Vector& WtildeScaled,
+		const Vector& W1, const Vector& W1perp, Vector& v) {
+	double dt = par.T(i) / N;
+	double sdt = sqrt(dt);
+	updateWtilde(Wtilde, W1, W1perp, par.H(i));
+	scaleWtilde(WtildeScaled, Wtilde, par.T(i), par.H(i));
+	updateV(v, WtildeScaled, par.xi(i), par.H(i), par.eta(i), dt);
+	// now compute \int v_s ds, \int \sqrt{v_s} dW_s with W = W1
+	double Ivdt = intVdt(v, dt);
+	double IsvdW = intRootVdW(v, W1, sdt);
+	Vector ret {Ivdt, IsvdW};
+	return ret;
+}
+
+double RBergomi::updatePayoffControlVariate(long i, Vector& Wtilde, Vector& WtildeScaled, const Vector& W1,
+				const Vector& W1perp, Vector& v, double alpha, double Q){
+	Vector integrals = computeIvdtIsvdW(i, Wtilde, WtildeScaled, W1, W1perp, v);
+	double Ivdt = integrals[0];
+	double IsvdW = integrals[1];
+	double BS_vol_X = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
+	double BS_spot = exp( -0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i) * IsvdW);
+	double X = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol_X);
+	double BS_vol_Y = sqrt(par.rho(i) * par.rho(i) * (Q - Ivdt));
+	double Y = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol_Y);
+	return X + alpha * Y;
+}
+
+std::vector<Vector> RBergomi::estimateControlVariate(Vector& Wtilde, Vector& WtildeScaled, Vector& W1,
+		Vector& W1perp, Vector& v){
+	// X[i] is a vector of Mcontrol samples of E[(S_T - e^k)^+ | W^1]
+	// Y[i] is a vector of Mcontrol samples of Y as defined in (2.4) in McCrickerd & Pakkanen
+	// correlated with X[i]
+	std::vector<Vector> X(par.size(), Vector(Mcontrol, 0.0));
+	std::vector<Vector> Y(par.size(), Vector(Mcontrol, 0.0));
+	Vector alpha(par.size(), 0.0);
+	Vector Q(par.size(), 0.0);
+	std::vector<Vector> Ivdt(par.size(), Vector(Mcontrol, 0.0));
+	std::vector<Vector> IsvdW(par.size(), Vector(Mcontrol, 0.0));
+	for(long m=0; m<Mcontrol; ++m){
+		// generate samples
+		// generate the fundamental Gaussians
+		genGaussian(W1);
+		genGaussian(W1perp);
+		// for each i, generate the integrals
+		for(size_t i=0; i<par.size(); ++i){
+			Vector integrals = computeIvdtIsvdW(i, Wtilde, WtildeScaled, W1, W1perp, v);
+			Ivdt[i][m] = integrals[0];
+			IsvdW[i][m] = integrals[1];
+			Q[i] = std::max(Q[i], Ivdt[i][m]);
+		}
+	}
+	// Now Q is fixed, we can compute X and Y
+	for(long m=0; m<Mcontrol; ++m){
+		// compute the variates
+		for(size_t i=0; i<par.size(); ++i){
+			double BS_vol_X = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt[i][m]);
+			double BS_spot = exp(
+						-0.5 * par.rho(i) * par.rho(i) * Ivdt[i][m] + par.rho(i) * IsvdW[i][m]);
+			X[i][m] = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol_X);
+			double BS_vol_Y = sqrt(par.rho(i) * par.rho(i) * (Q[i] - Ivdt[i][m]));
+			Y[i][m] = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol_Y);
+		}
+	}
+	// Compute alpha[i] as negative covariance between X[i] and Y[i] divided by the variance of Y[i]
+	for(size_t i = 0; i < par.size(); ++i)
+		alpha[i] = - covariance(X[i], Y[i]) / covariance(Y[i], Y[i]);
+
+	return std::vector<Vector> {alpha, Q};
 }
