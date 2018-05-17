@@ -43,7 +43,7 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
 int main(int argc, char* argv[]) {
-	feenableexcept(FE_INVALID | FE_OVERFLOW);
+	feenableexcept(FE_INVALID);// | FE_OVERFLOW);
 
 	if ((argc != 7) && (argc != 1)) {
 		std::cerr

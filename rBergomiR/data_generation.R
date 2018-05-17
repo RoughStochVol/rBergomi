@@ -32,6 +32,33 @@ TK.sample <- function(M, fhat){
   return(x)
 }
 
+#################################################################
+## Now use transformed, cut data with inverse spread as weights
+## and higher bandwidth.
+#################################################################
+library(ks)
+m.data <- read.csv(file = "processed_spx_data.csv")
+TK.matrix <- cbind(m.data$time.to.maturity..years., m.data$moneyness)
+colnames(TK.matrix) <- c("T","K")
+## Use inverse spread, but capped at 8 
+weights <- m.data$inv_spread
+weights[weights > 8] <- 8
+bandwidth <- Hpi(TK.matrix)
+bandwidth <- 10*bandwidth ## artificially increase bandwidth to smooth further
+fhat <- kde(TK.matrix, bandwidth, w = weights)
+plot(fhat, cont = 10*1:10)
+points(TK.matrix[,1], TK.matrix[,2])
+
+## Generate sample data, conditioned on expiry > 0.
+TK.sample <- function(M, fhat){
+  library(ks)
+  x <- rkde(M, fhat)
+  while(sum(x[,1] < 0) > 0)
+    x[x[,1] < 0,] <- rkde(sum(x[,1] < 0), fhat)
+  return(x)
+}
+
+
 #########################################################
 ## Use "reasonable" distributions for other parameters
 #########################################################
@@ -100,7 +127,14 @@ num.jobs <- 30 ## number of parallel threads
 ## Sample the parameters
 par.data <- par.sample(num.data)
 
+## save for Ben
+head(par.data[,5:6])
+write.csv(par.data[,5:6], file = "sampled.csv")
+
 ## Call the pricer (and measure timing)
 dat <- pricer(par.data, num.steps, num.MC.samples, num.jobs)
 
-save(dat, file = "rBergomi02.RData")
+save(dat, file = "rBergomi03.RData")
+
+load("rBergomi03.RData")
+write.csv(dat$res, file = "rBergomi03.csv")

@@ -351,7 +351,7 @@ void RBergomi::updateV(Vector& v, const Vector& WtildeScaled, double xi, double 
 		v[i] = xi
 				* exp(
 						e * WtildeScaled[i - 1]
-								- 0.5 * e * e * pow((i - 1) * dt, 2 * h));
+								- 0.5 * e * e * pow(i * dt, 2 * h));
 }
 
 void RBergomi::updateZ(Vector& Z, const Vector& W1, const Vector& Wperp,
@@ -497,7 +497,7 @@ std::vector<Vector> RBergomi::estimateControlVariate(Vector& Wtilde, Vector& Wti
 			Vector integrals = computeIvdtIsvdW(i, Wtilde, WtildeScaled, W1, W1perp, v);
 			Ivdt[i][m] = integrals[0];
 			IsvdW[i][m] = integrals[1];
-			Q[i] = std::max(Q[i], Ivdt[i][m]);
+			Q[i] = std::max(Q[i], 2*Ivdt[i][m]); // We drastically over estimate Q here...
 		}
 	}
 	// Now Q is fixed, we can compute X and Y
