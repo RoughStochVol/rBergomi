@@ -11,8 +11,10 @@ RBergomi::RBergomi() {
 	N = 0;
 	M = 0;
 	Mcontrol = 0;
+	Qmax = 0.0;
 	nDFT = 0;
 	par = ParamTot();
+	countQmaxException = std::vector<long>(par.size(), 0);
 	xC = new fftw_complex[0];
 	xHat = new fftw_complex[0];
 	yC = new fftw_complex[0];
@@ -29,9 +31,11 @@ RBergomi::RBergomi(Vector x, Vector HIn, Vector e, Vector r, Vector t, Vector k,
 	N = NIn;
 	nDFT = 2 * N - 1;
 	M = MIn;
-	Mcontrol = 100;
+	Mcontrol = 10000;
+	Qmax = 10000.0;
 	//numThreads = numThreadsIn;
 	par = ParamTot(HIn, e, r, t, k, x);
+	countQmaxException = std::vector<long>(par.size(), 0);
 	setGen(seed);
 	dist = normDist(0.0, 1.0);
 	xC = new fftw_complex[nDFT];
@@ -225,6 +229,8 @@ Result RBergomi::ComputePriceRTVarRed() {
 	// vectors of prices and variances
 	Vector price(par.size(), 0.0);
 	Vector var(par.size(), 0.0);
+	// reset countQmaxException
+	countQmaxException = std::vector<long>(par.size(), 0);
 
 	// estimate the parameters alpha and Q for the control variates
 	std::vector<Vector> contVar = estimateControlVariate(Wtilde, WtildeScaled, W1, W1perp, v);
@@ -267,8 +273,14 @@ Result RBergomi::ComputePriceRTVarRed() {
 	scaleVector(stat, 1.0 / sqrt(double(M)));
 	Vector iv(par.size());
 	// adjust price by subtracting the expectation of the control variate
-	for(size_t i=0; i<par.size(); ++i)
-		price[i] -= alpha[i] * BS_call_price(1.0, par.K(i), 1.0, par.rho(i) * par.rho(i) * Q[i]);
+	for(size_t i=0; i<par.size(); ++i){
+		double probQmaxException = static_cast<double>(countQmaxException[i]) / M;
+		// bugfix
+		std::cerr << "probQmaxException = " << probQmaxException << std::endl;
+		double controlVarAdjust = (1.0 - probQmaxException) * BS_call_price(1.0, par.K(i), 1.0, par.rho(i) * par.rho(i) * Q[i])
+				+ probQmaxException * BS_call_price(1.0, par.K(i), 1.0, par.rho(i) * par.rho(i) * Qmax);
+		price[i] -= alpha[i] * controlVarAdjust;
+	}
 
 	Result res { price, iv, stat, par, N, M, 0.0 };
 
@@ -351,7 +363,7 @@ void RBergomi::updateV(Vector& v, const Vector& WtildeScaled, double xi, double 
 		v[i] = xi
 				* exp(
 						e * WtildeScaled[i - 1]
-								- 0.5 * e * e * pow((i - 1) * dt, 2 * h));
+								- 0.5 * e * e * pow(i * dt, 2 * h));
 }
 
 void RBergomi::updateZ(Vector& Z, const Vector& W1, const Vector& Wperp,
@@ -471,7 +483,9 @@ double RBergomi::updatePayoffControlVariate(long i, Vector& Wtilde, Vector& Wtil
 	double BS_vol_X = sqrt((1.0 - par.rho(i) * par.rho(i)) * Ivdt);
 	double BS_spot = exp( -0.5 * par.rho(i) * par.rho(i) * Ivdt + par.rho(i) * IsvdW);
 	double X = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol_X);
-	double BS_vol_Y = sqrt(par.rho(i) * par.rho(i) * (Q - Ivdt));
+	double BS_vol_Y = (Q > Ivdt) ? sqrt(par.rho(i) * par.rho(i) * (Q - Ivdt)) : sqrt(par.rho(i) * par.rho(i) * (Qmax - Ivdt));
+	if (Q <= Ivdt)
+		countQmaxException[i]++;
 	double Y = BS_call_price(BS_spot, par.K(i), 1.0, BS_vol_Y);
 	return X + alpha * Y;
 }
@@ -500,6 +514,9 @@ std::vector<Vector> RBergomi::estimateControlVariate(Vector& Wtilde, Vector& Wti
 			Q[i] = std::max(Q[i], Ivdt[i][m]);
 		}
 	}
+//	// For safety, multiply Q by multiplier
+//	const double multiplier = 2.0;
+//	scaleVector(Q, multiplier);
 	// Now Q is fixed, we can compute X and Y
 	for(long m=0; m<Mcontrol; ++m){
 		// compute the variates

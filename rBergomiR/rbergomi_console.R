@@ -147,7 +147,7 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs, var.red = FA
                                              finf(N), finf(M), path, out.names[[ind]],
                                              in.names[[ind]], method))
   ## bugfix
-  print(sys.command.list)
+  ##print(sys.command.list)
   
   sys.command <- paste(sys.command.list, collapse = " & ")
   system(sys.command)
@@ -161,5 +161,22 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs, var.red = FA
   ## Concatenate the data.frames
   res <- do.call("rbind", res.list)
   
+  return(res)
+}
+
+## Richardson extrapolation based on rBergomi pricer
+## N now denotes the smaller N, i.e., the extrapolation is based on N and 2*N
+## Extrapolation is done on both prices and implied vols, i.e., the
+## estimator for the implied vol does not correspond to the estimator for the price.
+## As both estimators are independent, the variance of the estimator is assumed to be the
+## sum of the variances.
+## The extrapolation is based on the assumption that the true weak rate is 1.
+rBergomi.richardson <- function(xi, H, eta, rho, T, K, N, M, num.jobs, var.red = FALSE){
+  res1 <- rBergomi.pricer2(xi, H, eta, rho, T, K, N, M, num.jobs, var.red)
+  res2 <- rBergomi.pricer2(xi, H, eta, rho, T, K, 2*N, M, num.jobs, var.red)
+  res <- res1
+  res$price <- 2*res1$price - res2$price
+  res$iv <- 2*res1$iv - res2$iv
+  res$stat <- sqrt(4*res1$stat^2 + res2$stat^2)
   return(res)
 }

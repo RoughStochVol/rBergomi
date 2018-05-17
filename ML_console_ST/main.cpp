@@ -43,7 +43,6 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
 int main(int argc, char* argv[]) {
-	feenableexcept(FE_INVALID | FE_OVERFLOW);
 
 	if ((argc != 7) && (argc != 1)) {
 		std::cerr
@@ -76,9 +75,9 @@ int main(int argc, char* argv[]) {
 		method = *(argv[6]);
 
 		// Double check: output of console arguments as recorded
-		std::cerr << "N = " << N << ", M = " << M << ",\npath = " << path_name << ",\noutfile = " << out_name
-				<< "\nmethod = " << method
-				<< std::endl;
+		//std::cerr << "N = " << N << ", M = " << M << ",\npath = " << path_name << ",\noutfile = " << out_name
+		//		<< "\nmethod = " << method
+		//		<< std::endl;
 
 		// read in the further input files.
 		const std::string hName = path_name + std::string(".") + in_name
@@ -122,7 +121,7 @@ int main(int argc, char* argv[]) {
 		seed[i] = rd();
 
 	// bugfix: output the seed
-	std::cout << "Seed = " << seed[0] << ", K[0] = " << K[0] << std::endl;
+	//std::cout << "Seed = " << seed[0] << ", K[0] = " << K[0] << std::endl;
 
 	// run the code
 	auto start = Clock::now();
@@ -133,7 +132,7 @@ int main(int argc, char* argv[]) {
 	else if (method == 't')
 		res = rberg.ComputeIVRTVarRed();
 	// bugfix
-	std::cerr << "Computation completed." << std::endl;
+	//std::cerr << "Computation completed." << std::endl;
 	auto end = Clock::now();
 	auto diff = duration_cast<milliseconds>(end - start);
 
@@ -145,7 +144,7 @@ int main(int argc, char* argv[]) {
 		file.open(out_name_full.c_str(),
 				std::ofstream::out | std::ofstream::trunc);
 		// bugfix
-		std::cerr << "Writing results in file " << out_name_full << std::endl;
+		//std::cerr << "Writing results in file " << out_name_full << std::endl;
 		if (!file.is_open()) {
 			std::cerr << "/nError while opening file " << out_name << "./n";
 			exit(1);

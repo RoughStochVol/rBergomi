@@ -62,7 +62,9 @@ private:
 	int N;
 	int nDFT; // length of arrays for which DFT needs to be computed; = 2*N - 1 ???
 	long M;
-	long Mcontrol; // # of samples used to estimate control variate; set to 100
+	long Mcontrol; // number of samples used for estimating control variates
+	double Qmax; // if Q was estimated too low, use this number without adjusting alpha.
+	std::vector<long> countQmaxException; // count how often Q was replaced by Qmax
 	MTGenerator gen;
 	normDist dist;
 	fftw_complex *xC; // one complex array (of size 2*N-1???)
