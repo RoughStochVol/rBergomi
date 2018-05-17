@@ -32,6 +32,33 @@ TK.sample <- function(M, fhat){
   return(x)
 }
 
+#################################################################
+## Now use transformed, cut data with inverse spread as weights
+## and higher bandwidth.
+#################################################################
+library(ks)
+m.data <- read.csv(file = "processed_spx_data.csv")
+TK.matrix <- cbind(m.data$time.to.maturity..years., m.data$moneyness)
+colnames(TK.matrix) <- c("T","K")
+## Use inverse spread, but capped at 8 
+weights <- m.data$inv_spread
+weights[weights > 8] <- 8
+bandwidth <- Hpi(TK.matrix)
+bandwidth <- 10*bandwidth ## artificially increase bandwidth to smooth further
+fhat <- kde(TK.matrix, bandwidth, w = weights)
+plot(fhat, cont = 10*1:10)
+points(TK.matrix[,1], TK.matrix[,2])
+
+## Generate sample data, conditioned on expiry > 0.
+TK.sample <- function(M, fhat){
+  library(ks)
+  x <- rkde(M, fhat)
+  while(sum(x[,1] < 0) > 0)
+    x[x[,1] < 0,] <- rkde(sum(x[,1] < 0), fhat)
+  return(x)
+}
+
+
 #########################################################
 ## Use "reasonable" distributions for other parameters
 #########################################################
@@ -92,27 +119,22 @@ pricer <- function(par.data, num.steps, num.MC.samples, num.jobs){
 
 ## This is a serious run.
 
-## Change the computation step: instead of computing everythin in one step,
-## divide into many different jobs that are run sequentially. (Each individual job running 
-## on many threads and including many data.)
-## Advantage: data become available sooner, you do not have to wait until all computations
-## are finished.
-
 num.data <- 1000000 ## number of prices to be provided
-num.steps <- 100 ## number of timesteps for Euler discretization; -> 100
-num.MC.samples <- 400000 ## number of MC samples in the pricing routine; -> 200000
-num.jobs <- 20 ## number of parallel threads
-num.threads <- 30 ## number of parallel threads
-fname.fun <- function(i)
-  paste("rBergomi04", i, sep = "_")
-file.names <- sapply(1:num.jobs, fname.fun)
+num.steps <- 200 ## number of timesteps for Euler discretization
+num.MC.samples <- 50000 ## number of MC samples in the pricing routine
+num.jobs <- 30 ## number of parallel threads
 
 ## Sample the parameters
 par.data <- par.sample(num.data)
 
-## Call the pricer (and measure timing)
-for(i in 1:num.jobs){
-  dat <- pricer(par.data, num.steps, num.MC.samples, num.threads)
+## save for Ben
+head(par.data[,5:6])
+write.csv(par.data[,5:6], file = "sampled.csv")
 
-save(dat, file = "rBergomi02.RData")
-}
+## Call the pricer (and measure timing)
+dat <- pricer(par.data, num.steps, num.MC.samples, num.jobs)
+
+save(dat, file = "rBergomi03.RData")
+
+load("rBergomi03.RData")
+write.csv(dat$res, file = "rBergomi03.csv")

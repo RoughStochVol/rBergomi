@@ -511,7 +511,7 @@ std::vector<Vector> RBergomi::estimateControlVariate(Vector& Wtilde, Vector& Wti
 			Vector integrals = computeIvdtIsvdW(i, Wtilde, WtildeScaled, W1, W1perp, v);
 			Ivdt[i][m] = integrals[0];
 			IsvdW[i][m] = integrals[1];
-			Q[i] = std::max(Q[i], Ivdt[i][m]);
+			Q[i] = std::max(Q[i], 2*Ivdt[i][m]); // We drastically over estimate Q here...
 		}
 	}
 //	// For safety, multiply Q by multiplier
