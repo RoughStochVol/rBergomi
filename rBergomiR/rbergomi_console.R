@@ -141,9 +141,15 @@ rBergomi.pricer2 <- function(xi, H, eta, rho, T, K, N, M, num.jobs, var.red = FA
   
   finf <- function(x) formatC(x, format="d")
   
+  ## path of executable depends on system
+  if(Sys.info()[1] == "Darwin")
+    exec.name <- "Release/ML_console_ST"
+  else
+    exec.name <- "ML_console_ST"
+  
   ## Construct each individual system command and concatenate them by paste
   sys.command.list <- lapply(names(xi.list), function(ind) paste(paste(path, 
-                                            "Release/ML_console_ST", sep=""), 
+                                             exec.name, sep=""), 
                                              finf(N), finf(M), path, out.names[[ind]],
                                              in.names[[ind]], method))
   ## bugfix
