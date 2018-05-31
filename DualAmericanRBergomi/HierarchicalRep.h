@@ -31,6 +31,7 @@ class HierarchicalRep {
 protected:
 	double H; // Hurst index
 	double T; // terminal time
+	double sT; // 1/sqrt(T)
 	int K; // number of exercise dates
 	double dt; // mesh size of exercise grid
 	int N; // size of the discretization grid. Assumed a multiple of K;

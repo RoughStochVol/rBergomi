@@ -28,6 +28,7 @@
 
 #include <array>
 #include <iostream>
+#include <numeric>
 #include "HierarchicalRep.h"
 #include "aux.h"
 
@@ -39,17 +40,26 @@ private:
 	int n; // maximal level of the Haar basis used
 	// auxiliary variables for all deterministic terms needed for computing Wtilde or dB.
 	// these are vectors of size I, whose inner product with X determines the output.
-	Vector WtildeKer;
-	std::vector<Vector> dBKer; // with 2 elements
+	std::vector<Vector> WtildeKer;
+	std::vector<Vector> dB1Ker;
+	std::vector<Vector> dB2Ker;
+	double sdt; // = sqrt(dt)
 	// auxiliary functions for constructing those kernels
 	void getWtildeKer();
 	void getdBKer();
+	// The Haar basis integrated against the fractional kernel; INCORRECT DUE TO THE CONSTRUCTION BASED ON EXERCISE GRIDS
+	double PsiTilde(double t, int l, int j) const;
 public:
 	HaarRep2D();
 	HaarRep2D(double h, double t, int k, int n, std::vector<uint64_t> seed);
-	// tranform multi-indices to indices and vice versa.
+	// The following functions should be private, but are public to allow testing.
+	// transform multi-indices to indices and vice versa.
 	int alpha2iota(MultiIndex alpha) const;
 	MultiIndex iota2alpha(int iota) const;
+	// The integrated Haar basis function based on [0, 1]
+	double Psi(double t, int l, int j) const;
+	// The integrated basis function for 2D based on the exercise grid. Return the i'th component.
+	double Phi(double t, int iota, int i) const;
 	// return a sample of \tilde{W} on a grid of size N
 	// note that this depends on the choice of hierarchical representation!
 	// It is assumed that N is a multiple of K.
