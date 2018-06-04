@@ -55,15 +55,6 @@ void HaarRep2D::getdBKer() {
 	dB2Ker = std::vector<Vector>(N, Vector(I));
 	for(int n = 0; n < N; ++n){
 		for(int iota = 0; iota < I; ++iota){
-//			MultiIndex alpha = iota2alpha(iota);
-//			if(alpha[2] == 0){
-//				dB2Ker[n][iota] = 0.0;
-//				dB1Ker[n][iota] = Psi((n+1) * ds, alpha[0], alpha[1]) - Psi(n * ds, alpha[0], alpha[1]);
-//			}
-//			else{
-//				dB1Ker[n][iota] = 0.0;
-//				dB2Ker[n][iota] = Psi((n+1) * ds, alpha[0], alpha[1]) - Psi(n * ds, alpha[0], alpha[1]);
-//			}
 			dB1Ker[n][iota] = Phi((n+1) * ds, iota, 0) - Phi(n * ds, iota, 0);
 			dB2Ker[n][iota] = Phi((n+1) * ds, iota, 1) - Phi(n * ds, iota, 1);
 		}

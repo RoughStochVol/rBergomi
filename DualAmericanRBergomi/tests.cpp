@@ -183,23 +183,67 @@ TEST_CASE( "Test the hierarchical representation in the Haar sense.", "[hierarch
 		auto cov12 = covariance(dB1, dB2);
 
 		// Compare with true values
-		std::cout << "ds = " << T / N << ", threshold = " << confidenceFactor/sqrt(M) << std::endl;
+		//std::cout << "ds = " << T / N << ", threshold = " << confidenceFactor/sqrt(M) << std::endl;
 		for(int n1=0; n1<N; ++n1){
 			for(int n2=0; n2<N; ++n2){
 				double trueVar = (n1 == n2) ? T / N : 0.0;
-//				if((fabs(cov1[n1][n2] - trueVar) > confidenceFactor/sqrt(M)) || (fabs(cov2[n1][n2] - trueVar) > confidenceFactor/sqrt(M))
-//						|| (fabs(cov12[n1][n2] - 0.0) > confidenceFactor/sqrt(M))){
-//				std::cout << "cov(dB1[" << n1 << "], dB1[" << n2 << "]) = " << cov1[n1][n2]
-//						<< "\ncov(dB2[" << n1 << "], dB2[" << n2 << "]) = " << cov2[n1][n2]
-//						<< "\ncov(dB1[" << n1 << "], dB2[" << n2 << "]) = " << cov12[n1][n2]
-//						<< "\ntrueVar = " << trueVar << "\n========================================"
-//																						 << std::endl;
-//				}
 				REQUIRE(fabs(cov1[n1][n2] - trueVar) < confidenceFactor/sqrt(M));
 				REQUIRE(fabs(cov2[n1][n2] - trueVar) < confidenceFactor/sqrt(M));
 				REQUIRE(fabs(cov12[n1][n2] - 0.0) < confidenceFactor/sqrt(M));
 			}
 		}
 	}
+
+	SECTION("Test std::partial_sum:"){
+		Vector x {0.1, 0.2, 0.1};
+		Vector xSum(x.size()+1, 0.0);
+		std::partial_sum(x.begin(), x.end(), xSum.begin() + 1);
+		Vector xSumRef { 0.0, 0.1, 0.3, 0.4};
+		for(size_t i=0; i<xSum.size(); ++i)
+			REQUIRE(fabs(xSum[i] - xSumRef[i]) < 0.000001);
+	}
+
+	SECTION("Test generation of fBm together with Bm:"){
+		const int M = 40000; // number of samples
+		std::vector<Vector> dB1(M, Vector(N));
+		std::vector<Vector> dB2(M, Vector(N));
+		std::vector<Vector> Wtilde(M, Vector(N));
+		// compute B1 and B2 as well; includes the Bi[0], but not the final term.
+		std::vector<Vector> B1(M, Vector(N, 0.0));
+		std::vector<Vector> B2(M, Vector(N, 0.0));
+		for(int m = 0; m < M; ++m){
+			haar.generate();
+			dB1[m] = haar.dB(0);
+			dB2[m] = haar.dB(1);
+			Wtilde[m] = haar.Wtilde();
+			std::partial_sum(dB1[m].begin(), dB1[m].end() - 1, B1[m].begin() + 1);
+			std::partial_sum(dB2[m].begin(), dB2[m].end() - 1, B2[m].begin() + 1);
+		}
+
+		// compute the mean and covariance matrix of Wtilde and the covariance between Wtilde and Bi
+		auto meanW = mean(Wtilde);
+		auto covW = covariance(Wtilde, Wtilde);
+		auto covWB1 = covariance(Wtilde, B1);
+		auto covWB2 = covariance(Wtilde, B2);
+
+		// meanW must be 0
+		for(auto& m : meanW)
+			REQUIRE(fabs(m) < confidenceFactor/sqrt(M));
+
+		// NOTE THAT THERE IS A BIAS HERE!!!
+		// Check covariance
+		const double ds = T/N;
+		for(size_t n1=0; n1<covW.size(); ++n1){
+			for(size_t n2=0; n2<covW[0].size(); ++n2){
+				double temp = covWtilde(n1 * ds, n2 * ds, H);
+				REQUIRE(fabs(covW[n1][n2] - temp) < confidenceFactor/sqrt(M));
+				temp = covCross(n1 * ds, n2 * ds, H, 0);
+				REQUIRE(fabs(covWB1[n1][n2] - temp) < confidenceFactor/sqrt(M));
+				temp = covCross(n1 * ds, n2 * ds, H, 1);
+				REQUIRE(fabs(covWB2[n1][n2] - temp) < confidenceFactor/sqrt(M));
+			}
+		}
+	}
+
 
 }

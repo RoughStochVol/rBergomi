@@ -52,6 +52,7 @@ public:
 	// return a sample of \tilde{W} on a grid of size N
 	// note that this depends on the choice of hierarchical representation!
 	// It is assumed that N is a multiple of K.
+	// The sample starts from the value at 0, but does not include the value at t_N = T.
 	virtual Vector Wtilde() const = 0;
 	// return a sample of the increments of Brownian motion j along a grid of size N (assumed to be a multiple of K).
 	// note that this depends on the choice of hierarchical representation!

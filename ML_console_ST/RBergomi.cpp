@@ -277,8 +277,8 @@ Result RBergomi::ComputePriceRTVarRed() {
 		double probQmaxException = static_cast<double>(countQmaxException[i]) / M;
 		// bugfix
 		std::cerr << "probQmaxException = " << probQmaxException << std::endl;
-		double controlVarAdjust = (1.0 - probQmaxException) * BS_call_price(1.0, par.K(i), 1.0, par.rho(i) * par.rho(i) * Q[i])
-				+ probQmaxException * BS_call_price(1.0, par.K(i), 1.0, par.rho(i) * par.rho(i) * Qmax);
+		double controlVarAdjust = (1.0 - probQmaxException) * BS_call_price(1.0, par.K(i), 1.0, sqrt(par.rho(i) * par.rho(i) * Q[i]))
+				+ probQmaxException * BS_call_price(1.0, par.K(i), 1.0, sqrt(par.rho(i) * par.rho(i) * Qmax));
 		price[i] -= alpha[i] * controlVarAdjust;
 	}
 
