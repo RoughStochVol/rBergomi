@@ -39,13 +39,14 @@ void HaarRep2D::getWtildeKer() {
 	WtildeKer = std::vector<Vector>(N, Vector(I));
 	for(int n = 0; n < N; ++n){
 		for(int iota = 0; iota < I; ++iota){
-			MultiIndex alpha = iota2alpha(iota);
-			if(alpha[2] == 0){
-				WtildeKer[n][iota] = PsiTilde(n * ds, alpha[0], alpha[1]);
-			}
-			else{
-				WtildeKer[n][iota] = 0.0;
-			}
+//			MultiIndex alpha = iota2alpha(iota);
+//			if(alpha[2] == 0){
+//				WtildeKer[n][iota] = PsiTilde(n * ds, alpha[0], alpha[1]);
+//			}
+//			else{
+//				WtildeKer[n][iota] = 0.0;
+//			}
+			WtildeKer[n][iota] = PhiTilde(n * ds, iota);
 		}
 	}
 }
@@ -93,15 +94,43 @@ double HaarRep2D::Phi(double t, int iota, int i) const{
 	return ret;
 }
 
-double HaarRep2D::PsiTilde(double t, int l, int j) const{
+//double HaarRep2D::PsiTilde(double t, int l, int j) const{
+//	double ret;
+//	if(l == 0)
+//		ret = sqrt(2*H/T) / (H + 0.5) * pow(t, H + 0.5); // to be changed
+//	else{
+//		double tMin = pow(2.0, -(l-1)) * j * T;
+//		double tMid = pow(2.0, -(l-1)) * (j + 0.5) * T;
+//		double tMax = pow(2.0, -(l-1)) * (j + 1.0) * T;
+//		double factor = sqrt(2*H/T) / (H + 0.5) * pow(2.0, 0.5*(l-1));
+//		if(t < tMin)
+//			ret = 0.0;
+//		else if(t < tMid)
+//			ret = factor * pow(t - tMin, H + 0.5);
+//		else if(t < tMax)
+//			ret = factor * (pow(t - tMin, H + 0.5) - 2.0 * pow(t - tMid, H + 0.5));
+//		else
+//			ret = factor * (pow(t - tMin, H + 0.5) - 2.0 * pow(t - tMid, H + 0.5) +
+//					pow(t - tMax, H + 0.5));
+//	}
+//	return ret;
+//}
+
+double HaarRep2D::PhiTilde(double t, int iota) const{
+	MultiIndex alpha = iota2alpha(iota);
 	double ret;
-	if(l == 0)
-		ret = sqrt(2*H/T) / (H + 0.5) * pow(t, H + 0.5); // to be changed
+	if((alpha[2] != 0) || (t < alpha[3] * dt))
+		ret = 0.0;
+	else if(alpha[0] == 0){
+		double term = t < (alpha[3] + 1) * dt ? pow(t - alpha[3] * dt, H+0.5) :
+				pow(t - alpha[3] * dt, H+0.5) - pow(t - (alpha[3] + 1) * dt, H+0.5);
+		ret = sqrt(2*H/dt) / (H + 0.5) * term;
+	}
 	else{
-		double tMin = pow(2.0, -(l-1)) * j * T;
-		double tMid = pow(2.0, -(l-1)) * (j + 0.5) * T;
-		double tMax = pow(2.0, -(l-1)) * (j + 1.0) * T;
-		double factor = sqrt(2*H/T) / (H + 0.5) * pow(2.0, 0.5*(l-1));
+		double tMin = pow(2.0, -(alpha[0]-1)) * alpha[1] * dt + alpha[3] * dt;
+		double tMid = pow(2.0, -(alpha[0]-1)) * (alpha[1] + 0.5) * dt + alpha[3] * dt;
+		double tMax = pow(2.0, -(alpha[0]-1)) * (alpha[1] + 1.0) * dt + alpha[3] * dt;
+		double factor = sqrt(2*H/dt) / (H + 0.5) * pow(2.0, 0.5*(alpha[0]-1));
 		if(t < tMin)
 			ret = 0.0;
 		else if(t < tMid)

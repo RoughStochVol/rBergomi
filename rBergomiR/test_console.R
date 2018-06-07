@@ -14,7 +14,7 @@ n.op <- 10
 T <- rep(1.0, n.op)
 K <- seq(0.8, 1.2, length.out=n.op)
 
-xi <- 0.04
+xi <- rep(0.04, n.par)
 
 ## further parameters
 N <- 50
@@ -31,4 +31,4 @@ save(res, file="test.RData")
 
 ## Computes 10000 prices with 500 timesteps and 500000 samples in 1.4 hours with 8 cores.
 
-
+rBergomi.pricer2.simulate(xi, H, eta, rho, T, K, N, M, num.threads)

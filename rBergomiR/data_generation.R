@@ -87,13 +87,14 @@ par.sample <- function(M){
 #########################################################
 ## Provide wrapper function around rBergomi.pricer2
 #########################################################
-pricer <- function(par.data, num.steps, num.MC.samples, num.jobs){
+pricer <- function(par.data, num.steps, num.MC.samples, num.threads){
   time.system <- system.time(res <<- rBergomi.pricer2(par.data$xi, par.data$H, 
                                                       par.data$eta, par.data$rho, 
                                                       par.data$T, par.data$K, num.steps, 
-                                                      num.MC.samples, num.jobs))
-  num.stat <- c(num.steps, num.MC.samples, num.jobs)
-  names(num.stat) <- c("steps", "MC.samples", "num.jobs")
+                                                      num.MC.samples, num.threads,
+                                                      TRUE))
+  num.stat <- c(num.steps, num.MC.samples, num.threads)
+  names(num.stat) <- c("steps", "MC.samples", "num.threads")
   num.stat <- c(num.stat, time.system)
   return(list(res = res, num.stat = num.stat))
 }
@@ -119,11 +120,11 @@ pricer <- function(par.data, num.steps, num.MC.samples, num.jobs){
 
 ## This is a serious run.
 
-num.data <- 1000000 ## number of prices to be provided
+num.data <- 10000 ## number of prices to be provided
 num.steps <- 100 ## number of timesteps for Euler discretization
-num.MC.samples <- 400000 ## number of MC samples in the pricing routine
+num.MC.samples <- 40000 ## number of MC samples in the pricing routine
 num.jobs <- 20 ## # of jobs sequentially worked
-num.threads <- 30 ## number of parallel threads
+num.threads <- 8 ## number of parallel threads
 
 ## function for providing file names
 fname.fun <- function(i) paste("rBergomi04", i, sep = "_")
@@ -144,6 +145,7 @@ pricer.slice <- function(i){
   save(dat, file = paste(fname.fun(i),".RData", sep = ""))
   write.csv(dat$res, file = paste(fname.fun(i),".csv", sep = ""))
   print(paste("End of job", i))
+  return(dat)
 }
 
 ## Call the pricer (and measure timing)

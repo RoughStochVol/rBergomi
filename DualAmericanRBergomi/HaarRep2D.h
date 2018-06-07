@@ -47,8 +47,6 @@ private:
 	// auxiliary functions for constructing those kernels
 	void getWtildeKer();
 	void getdBKer();
-	// The Haar basis integrated against the fractional kernel; INCORRECT DUE TO THE CONSTRUCTION BASED ON EXERCISE GRIDS
-	double PsiTilde(double t, int l, int j) const;
 public:
 	HaarRep2D();
 	HaarRep2D(double h, double t, int k, int n, std::vector<uint64_t> seed);
@@ -60,6 +58,9 @@ public:
 	double Psi(double t, int l, int j) const;
 	// The integrated basis function for 2D based on the exercise grid. Return the i'th component.
 	double Phi(double t, int iota, int i) const;
+	// The Haar basis integrated against the fractional kernel;
+	//double PsiTilde(double t, int l, int j) const;
+	double PhiTilde(double t, int iota) const;
 	// return a sample of \tilde{W} on a grid of size N
 	// note that this depends on the choice of hierarchical representation!
 	// It is assumed that N is a multiple of K.
