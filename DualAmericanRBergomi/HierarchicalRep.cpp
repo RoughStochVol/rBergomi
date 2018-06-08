@@ -10,6 +10,7 @@
 HierarchicalRep::HierarchicalRep() {
 	H = 0.0;
 	T = 0.0;
+	sT = 0.0;
 	K = 0;
 	dt = 0.0;
 	N = 0;
@@ -25,6 +26,7 @@ HierarchicalRep::HierarchicalRep(double h, double t, int k, int n, int D, long i
 		std::vector<uint64_t> seed = std::vector<uint64_t>(0)) {
 	H = h;
 	T = t;
+	sT = 1.0 / sqrt(T);
 	K = k;
 	dt = T/K;
 	N = n;

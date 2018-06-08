@@ -76,7 +76,8 @@ double IV_call(double price, double S0, double K, double tau, double r){
 	return res.first + (res.second - res.first)/2;
 	*/
 	// Instead apply Newton
-	auto objFunc = [&](double sigma){return std::pair<double, double>(price - BS_call_price(S0, K, tau, sigma, r), - BS_Vega(S0, K, tau, sigma, r));};
+	auto objFunc = [&](double sigma){return std::pair<double, double>(price - BS_call_price(S0, K, tau, sigma, r),
+			- BS_Vega(S0, K, tau, sigma, r));};
 	double guess = 0.2;
 	double min = 0.0;
 	double max = 10.0;
