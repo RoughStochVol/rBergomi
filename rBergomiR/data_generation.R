@@ -123,7 +123,7 @@ num.data <- 1000000 ## number of prices to be provided
 num.steps <- 100 ## number of timesteps for Euler discretization
 num.MC.samples <- 400000 ## number of MC samples in the pricing routine
 num.jobs <- 20 ## # of jobs sequentially worked
-num.threads <- 30 ## number of parallel threads
+num.threads <- 40 ## number of parallel threads
 
 ## function for providing file names
 fname.fun <- function(i) paste("rBergomi04", i, sep = "_")
@@ -150,4 +150,31 @@ pricer.slice <- function(i){
 dat.complete <- lapply(1:num.jobs, pricer.slice)
 save(dat.complete, file = "rBergomi04.RData")
 
+#####################################################################
+## Plot a surface.
+#####################################################################
 
+K <- exp(seq(-0.1, 0.25, length.out = 50))
+T <- seq(0.01, 0.5, length.out = 50)
+K.vec <- expand.grid(K, T)[,1]
+T.vec <- expand.grid(K, T)[,2]
+xi <- rep(0.04, length(K.vec))
+H <- rep(0.07, length(K.vec))
+eta <- rep(2.2, length(K.vec))
+rho <- rep(-0.9, length(K.vec))
+
+num.steps <- 100 ## number of timesteps for Euler discretization
+num.MC.samples <- 400000 ## number of MC samples in the pricing routine
+num.threads <- 1 ## number of parallel threads
+
+res <- rBergomi.pricer2(xi, H, eta, rho, T.vec, K.vec, num.steps, 
+                 num.MC.samples, num.threads)
+save(res, file="smile_res.RData")
+
+## Plot the surface
+persp(log(K), T, matrix(res$iv, ncol = length(K), byrow = FALSE), theta = -10,
+      ticktype = "detailed", xlab = "log-moneyness", ylab = "maturity", zlab = "implied vol")
+
+library(plot3D)
+persp3D(log(K), T, matrix(res$iv, ncol = length(K), byrow = FALSE), 
+      ticktype = "detailed", xlab = "log-moneyness", ylab = "maturity", zlab = "implied vol")
