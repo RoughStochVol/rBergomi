@@ -37,12 +37,16 @@ source("rbergomi_console.R")
 ## and higher bandwidth.
 #################################################################
 library(ks)
-m.data <- read.csv(file = "spx_liquid_calls.csv")
-TK.matrix <- cbind(m.data$time.to.maturity..years., exp(m.data$log_moneyness))
+#m.data <- read.csv(file = "spx_liquid_calls.csv")
+m.data <- read.csv(file = "spxVols20170519.csv")
+#TK.matrix <- cbind(m.data$time.to.maturity..years., exp(m.data$log_moneyness))
+TK.matrix <- cbind(m.data$Texp, m.data$Strike / m.data$Fwd)
 colnames(TK.matrix) <- c("T","K")
 ## Use inverse spread, but capped at 8 
-weights <- m.data$inv_spread
-weights[weights > 8] <- 8
+#weights <- m.data$inv_spread
+weights <- 1 / (m.data$Ask - m.data$Bid)
+weights[weights > 400] <- 400
+weights[weights < 10] <- 10
 bandwidth <- Hpi(TK.matrix)
 bandwidth <- 10*bandwidth ## artificially increase bandwidth to smooth further
 fhat <- kde(TK.matrix, bandwidth, w = weights)
@@ -120,21 +124,21 @@ pricer <- function(par.data, num.steps, num.MC.samples, num.threads){
 
 ## This is a serious run.
 
-num.data <- 10000 ## number of prices to be provided
+num.data <- 1000000 ## number of prices to be provided
 num.steps <- 100 ## number of timesteps for Euler discretization
 num.MC.samples <- 40000 ## number of MC samples in the pricing routine
 num.jobs <- 20 ## # of jobs sequentially worked
 num.threads <- 40 ## number of parallel threads
 
 ## function for providing file names
-fname.fun <- function(i) paste("rBergomi04", i, sep = "_")
+fname.fun <- function(i) paste("rBergomi05", i, sep = "_")
 
 ## Sample the parameters
 par.data <- par.sample(num.data)
 
 ## save for Ben
-#head(par.data[,5:6])
-#write.csv(par.data[,5:6], file = "sampled_liquid.csv")
+head(par.data[,5:6])
+write.csv(par.data[,5:6], file = "sampled_liquid_jim.csv")
 
 ## Call the pricer on the i'th slice of data
 count <- num.data / num.jobs
@@ -150,33 +154,6 @@ pricer.slice <- function(i){
 
 ## Call the pricer (and measure timing)
 dat.complete <- lapply(1:num.jobs, pricer.slice)
-save(dat.complete, file = "rBergomi04.RData")
+save(dat.complete, file = "rBergomi05.RData")
 
-#####################################################################
-## Plot a surface.
-#####################################################################
 
-K <- exp(seq(-0.1, 0.25, length.out = 50))
-T <- seq(0.01, 0.5, length.out = 50)
-K.vec <- expand.grid(K, T)[,1]
-T.vec <- expand.grid(K, T)[,2]
-xi <- rep(0.04, length(K.vec))
-H <- rep(0.07, length(K.vec))
-eta <- rep(2.2, length(K.vec))
-rho <- rep(-0.9, length(K.vec))
-
-num.steps <- 100 ## number of timesteps for Euler discretization
-num.MC.samples <- 400000 ## number of MC samples in the pricing routine
-num.threads <- 1 ## number of parallel threads
-
-res <- rBergomi.pricer2(xi, H, eta, rho, T.vec, K.vec, num.steps, 
-                 num.MC.samples, num.threads)
-save(res, file="smile_res.RData")
-
-## Plot the surface
-persp(log(K), T, matrix(res$iv, ncol = length(K), byrow = FALSE), theta = -10,
-      ticktype = "detailed", xlab = "log-moneyness", ylab = "maturity", zlab = "implied vol")
-
-library(plot3D)
-persp3D(log(K), T, matrix(res$iv, ncol = length(K), byrow = FALSE), 
-      ticktype = "detailed", xlab = "log-moneyness", ylab = "maturity", zlab = "implied vol")
