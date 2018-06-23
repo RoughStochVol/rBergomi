@@ -57,6 +57,13 @@ public:
 	// return a sample of the increments of Brownian motion j along a grid of size N (assumed to be a multiple of K).
 	// note that this depends on the choice of hierarchical representation!
 	virtual Vector dB(int j) const = 0;
+	// Getters
+	double getT() const {return T;}
+	double getDt() const {return dt;}
+	int getN() const {return N;}
+	int getK() const {return K;}
+	double getDs() const {return ds;}
+	double getH() const {return H;}
 };
 
 #endif /* HIERARCHICALREP_H_ */

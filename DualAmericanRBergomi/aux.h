@@ -5,6 +5,8 @@
  *      Author: bayerc
  */
 
+#pragma once
+
 #include <iostream>
 #include <cmath>
 #include <array>
@@ -28,6 +30,13 @@ inline int ilog2(int n) {
 // double logarithm for base 2
 inline double log2(double x) {
 	return log(x) / log(2);
+}
+
+// exponential of a vector
+// FOR TESTING ONLY
+template <typename T>
+inline void expVector(const std::vector<T>& x, std::vector<T>& y){
+	std::transform(x.begin(), x.end(), y.begin(), [](double x) -> double {return exp(x);});
 }
 
 // overload cout for vector
@@ -109,3 +118,13 @@ double covWtilde(double t, double s, double H);
 // cross covariance between Wtilde(t) and Wi(s)
 // FOR TESTING ONLY
 double covCross(double t, double s, double H, int i);
+
+// similar to the range function in python
+// FOR TESTING ONLY
+template<typename T>
+inline std::vector<T> range(T xmin, T xmax){
+	std::vector<T> ret(xmax - xmin);
+	for(size_t i=0; i<xmax-xmin; ++i)
+		ret[i] = xmin + T(i);
+	return ret;
+}
