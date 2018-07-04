@@ -35,12 +35,16 @@ public:
 	// Return one simulated path of the rBergomi process
 	// Note: this changes the inner state of rep, as it generates a new sample X.
 	Vector generate();
+	Vector generateEuler();
 	// For testing purposes: return both S and V
 	std::pair<Vector, Vector> generate_SV();
+	// Generate SV but using the Euler scheme for generating \tilde{W}
+	std::pair<Vector, Vector> generate_Euler_SV();
 	// Return one simulated path of S and the corresponding vector X of standard normals
 	// used in the hierarchical representation underlying the Brownian motions.
 	// Note: this changes the inner state of rep, as it generates a new sample X.
-	void operator()(Vector& S, Vector& X);
+	// method is either 's' or 'e' (for Euler)
+	void operator()(Vector& S, Vector& X, char method);
 };
 
 #endif /* RBERGOMI_H_ */

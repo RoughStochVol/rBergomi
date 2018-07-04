@@ -27,7 +27,7 @@ int main(){
 	const int K = 1; // only one exercise possibility
 
 	// numerical parameters
-	const int numRuns = 7; // number of runs
+	const int numRuns = 5; // number of runs
 	std::vector<int> Nvec = range<int>(2, 2 + numRuns);
 	std::transform(Nvec.begin(), Nvec.end(), Nvec.begin(),
 			[](int n){return static_cast<int>(pow(2, n));});
@@ -41,7 +41,7 @@ int main(){
 	// reference price computed using the hybrid code.
 	// Actually, use a different implementation for H = 0.5
 	// Note: the hybrid scheme does not seem to work well for H = 1/2
-	// const double refPrice = 0.09104141; // H = 1/2
+	//const double refPrice = 0.09104141; // H = 1/2
 	const double refPrice = 0.09434211; // H < 1/2 does not work at the moment
 
 	// Generate objects
@@ -53,7 +53,7 @@ int main(){
 		haar = HaarRep2D(H, T, K, Nvec[n], seed);
 		Vector payoffs(Mvec[n]);
 		for(long m=0; m<Mvec[n]; ++m)
-			payoffs[m] = rBergomi.generate().back(); // the asset price at the terminal time
+			payoffs[m] = rBergomi.generateEuler().back(); // the asset price at the terminal time
 		// now compute the payoffs
 		std::transform(payoffs.begin(), payoffs.end(), payoffs.begin(),
 				[strike](double s){return s > strike ? s - strike : 0.0;});

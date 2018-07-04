@@ -54,6 +54,9 @@ public:
 	// It is assumed that N is a multiple of K.
 	// The sample starts from the value at 0, but does not include the value at t_N = T.
 	virtual Vector Wtilde() const = 0;
+	// Return a sample from \tilde{W} computed from a standard Euler discretization of the singular Volterra integral.
+	// Should be much less accurate, but avoids renormalization issues.
+	virtual Vector WtildeEuler() const = 0;
 	// return a sample of the increments of Brownian motion j along a grid of size N (assumed to be a multiple of K).
 	// note that this depends on the choice of hierarchical representation!
 	virtual Vector dB(int j) const = 0;

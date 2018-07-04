@@ -211,7 +211,7 @@ void compute_V(Vector& v, const Vector& Wtilde, double H, double eta, double xi,
 		v[i] = xi
 				* exp(
 						eta * Wtilde[i - 1]
-								- 0.5 * eta * eta * pow((i - 1) * dt, 2 * H));
+								- 0.5 * eta * eta * pow(i * dt, 2 * H));
 }
 
 double intVdt(const Vector & v, double dt) {

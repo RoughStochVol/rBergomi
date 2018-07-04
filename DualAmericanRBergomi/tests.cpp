@@ -377,7 +377,7 @@ TEST_CASE( "Test the hierarchical representation in the Haar sense.", "[hierarch
 
 }
 
-TEST_CASE( "Test the rBergomi simulation with H = 0.5.", "[Bergomi]" ) {
+TEST_CASE( "Test the rBergomi simulation with H = 0.5 and Stratonovich version.", "[Bergomi]" ) {
 	// model parameters
 	const double H = 0.5; // Sanity check: test standard Bm!
 	const double rho = -0.9;
@@ -452,7 +452,7 @@ TEST_CASE( "Test the rBergomi simulation with H = 0.5.", "[Bergomi]" ) {
 	}
 }
 
-TEST_CASE( "Test the rBergomi simulation with H = 0.3.", "[rBergomi]" ) {
+TEST_CASE( "Test the rBergomi simulation with H = 0.3 and Stratonovich version.", "[rBergomi]" ) {
 	// model parameters
 	const double H = 0.3; // Sanity check: test standard Bm!
 	const double rho = -0.9;
@@ -510,3 +510,58 @@ TEST_CASE( "Test the rBergomi simulation with H = 0.3.", "[rBergomi]" ) {
 // Note:
 // For both H = 0.5 and H = 0.3, the martingality of S is satisfied with similar precision (i.e.,
 // mean(S) - 1 is of similar size for both Hs.
+
+TEST_CASE( "Test the rBergomi simulation with H = 0.3 and Ito version.", "[rBergomi]" ) {
+	// model parameters
+	const double H = 0.3; // Sanity check: test standard Bm!
+	const double rho = -0.9;
+	const double eta = 2.5;
+	const std::function<double(double)> xi0 = [](double t) -> double {return 0.04;};
+	const double S0 = 1.0;
+	const double r = 0.0;
+
+	// option parameters
+	const int K = 3;
+	const double T = 0.8;
+
+	// numerical parameters
+	const int N = 4 * K;
+	std::vector<uint64_t> seed { 1, 2 };
+	const double confidenceFactor = 4.5; // corresponds to a confidence set at level 3e-06
+	const int M = 100000;
+
+	// initialize classes
+	HaarRep2D haar(H, T, K, N, seed);
+	RBergomi rBergomi(&haar, S0, r, eta, rho, xi0);
+
+
+	SECTION("Test the vectorized exponential function:"){
+		Vector x{1.0, 3.4, 1.7, -0.9};
+		Vector y(x.size());
+		for(size_t i=0; i<x.size(); ++i)
+			y[i] = exp(x[i]);
+		Vector z(x.size());
+		expVector(x, z);
+		for(size_t i=0; i<x.size(); ++i)
+			REQUIRE(fabs(y[i] - z[i]) < 0.0000001);
+	}
+
+	SECTION("Test that S is a martingale:"){
+		std::vector<Vector> S(M, Vector(N+1));
+		for(int m=0; m<M; ++m)
+			S[m] = rBergomi.generateEuler();
+		auto mS = mean(S);
+		//std::cout << "mean(S) = " << mS << std::endl;
+		for(int n=0; n<N+1; ++n)
+			REQUIRE(fabs(mS[n] - S0) < confidenceFactor/sqrt(M));
+	}
+
+	SECTION("Test for the expectation of v:"){
+		std::vector<Vector> v(M, Vector(N, 0.0));
+		for(int m=0; m<M; ++m)
+			v[m] = std::get<1>(rBergomi.generate_Euler_SV());
+		auto mv = mean(v);
+		for(auto vv : mv)
+			REQUIRE(fabs(vv - xi0(0.0)) < confidenceFactor/sqrt(M));// note that even the theoretical values are far off!
+	}
+}

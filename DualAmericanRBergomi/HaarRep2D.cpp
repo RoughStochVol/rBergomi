@@ -168,6 +168,18 @@ Vector HaarRep2D::Wtilde() const {
 	return W;
 }
 
+Vector HaarRep2D::WtildeEuler() const {
+	Vector W(N, 0.0);
+	Vector dB1 = dB(0);
+	// convolve the increments against the kernel values
+	// first do it by hand.
+	for(int n=0; n<N; ++n){
+		for(int i=0; i<n; ++i)
+			W[n] += sqrt(2.0 * H) * pow((n - i) * ds, H - 0.5) * dB1[i];
+	}
+	return W;
+}
+
 Vector HaarRep2D::dB(int j) const {
 	Vector dB(N);
 	const std::vector<Vector>& dBKer = (j == 0 ? dB1Ker : dB2Ker);
